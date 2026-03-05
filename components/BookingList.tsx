@@ -229,14 +229,14 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory }) => {
                             return (
                               <div key={idx} className="flex justify-between text-xs border-b border-slate-50 pb-1 last:border-0">
                                 <span className="text-slate-600">{drink?.name || 'Unknown Item'} x {sd.quantity}</span>
-                                <span className="font-bold text-slate-900">₹{sd.priceAtTime * sd.quantity}</span>
+                                <span className="font-bold text-slate-900">₹{(Number(sd.quantity) || 0) * Number(sd.priceAtTime)}</span>
                               </div>
                             );
                           })}
                           <div className="flex justify-between pt-2 border-t border-slate-100">
                             <span className="text-[10px] font-bold text-slate-400 uppercase">Drinks Total</span>
                             <span className="text-sm font-black text-indigo-600">
-                              ₹{booking.selectedDrinks.reduce((acc, d) => acc + (d.priceAtTime * d.quantity), 0)}
+                              ₹{booking.selectedDrinks.reduce((acc, d) => acc + (Number(d.priceAtTime) * (Number(d.quantity) || 0)), 0)}
                             </span>
                           </div>
                         </div>

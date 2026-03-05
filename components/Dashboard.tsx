@@ -68,14 +68,15 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
     let totalBookingRevenue = 0;
 
     filteredBookings.forEach(booking => {
-      totalBookingRevenue += booking.bookingAmount + (booking.extraHours.enabled ? booking.extraHours.amount : 0);
+      totalBookingRevenue += Number(booking.bookingAmount) + (booking.extraHours.enabled ? Number(booking.extraHours.amount) : 0);
 
       booking.selectedDrinks.forEach(drink => {
         if (drinkSales[drink.drinkId]) {
-          drinkSales[drink.drinkId].quantity += drink.quantity;
-          drinkSales[drink.drinkId].revenue += drink.quantity * drink.priceAtTime;
-          totalDrinksSold += drink.quantity;
-          totalDrinkRevenue += drink.quantity * drink.priceAtTime;
+          const qty = Number(drink.quantity) || 0;
+          drinkSales[drink.drinkId].quantity += qty;
+          drinkSales[drink.drinkId].revenue += qty * Number(drink.priceAtTime);
+          totalDrinksSold += qty;
+          totalDrinkRevenue += qty * Number(drink.priceAtTime);
         }
       });
     });
