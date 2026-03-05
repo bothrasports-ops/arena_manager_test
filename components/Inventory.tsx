@@ -15,9 +15,10 @@ interface InventoryProps {
   inventory: DrinkInventoryItem[];
   bookings: Booking[];
   onUpdate: () => void;
+  venueId?: string;
 }
 
-const Inventory: React.FC<InventoryProps> = ({ inventory, bookings, onUpdate }) => {
+const Inventory: React.FC<InventoryProps> = ({ inventory, bookings, onUpdate, venueId }) => {
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState<number | ''>(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -30,7 +31,11 @@ const Inventory: React.FC<InventoryProps> = ({ inventory, bookings, onUpdate }) 
     try {
       const { error } = await supabase
         .from('inventory')
-        .insert({ name: newItemName.trim(), price: Number(newItemPrice) });
+        .insert({
+          name: newItemName.trim(),
+          price: Number(newItemPrice),
+          venue_id: venueId
+        });
 
       if (error) throw error;
       setNewItemName('');

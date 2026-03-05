@@ -12,7 +12,8 @@ import {
   Package,
   Layers,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  ChevronDown
 } from 'lucide-react';
 import { Booking, Platform, DrinkInventoryItem, SelectedDrink } from '../types';
 import { supabase } from '../lib/supabase';
@@ -20,9 +21,10 @@ import { supabase } from '../lib/supabase';
 interface BookingFormProps {
   onSave: () => void;
   inventory: DrinkInventoryItem[];
+  venueId?: string;
 }
 
-const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory }) => {
+const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -30,11 +32,14 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory }) => {
   const [bookingAmount, setBookingAmount] = useState<number | ''>(0);
   const [selectedDrinks, setSelectedDrinks] = useState<SelectedDrink[]>([]);
   const [extraHoursEnabled, setExtraHoursEnabled] = useState(false);
-  const [extraHoursDuration, setExtraHoursDuration] = useState<number>(0);
+  const [extraHoursDuration, setExtraHoursDuration] = useState<number>(0.5);
   const [extraHoursAmount, setExtraHoursAmount] = useState<number | ''>(0);
 
   const totalAmount = useMemo(() => {
-    const drinksTotal = selectedDrinks.reduce((acc, drink) => acc + (drink.priceAtTime * drink.quantity), 0);
+    const drinksTotal = selectedDrinks.reduce((acc, drink) => {
+      const qty = typeof drink.quantity === 'number' ? drink.quantity : 0;
+      return acc + (drink.priceAtTime * qty);
+    }, 0);
     const extraTotal = extraHoursEnabled ? (Number(extraHoursAmount) || 0) : 0;
     return (Number(bookingAmount) || 0) + drinksTotal + extraTotal;
   }, [bookingAmount, selectedDrinks, extraHoursEnabled, extraHoursAmount]);
@@ -64,9 +69,16 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory }) => {
     setSelectedDrinks(updated);
   };
 
-  const handleUpdateQty = (index: number, qty: number) => {
+  const handleUpdateQty = (index: number, val: string) => {
     const updated = [...selectedDrinks];
-    updated[index].quantity = Math.max(1, qty);
+    if (val === '') {
+      updated[index].quantity = '';
+    } else {
+      const num = Number(val);
+      if (!isNaN(num)) {
+        updated[index].quantity = num;
+      }
+    }
     setSelectedDrinks(updated);
   };
 
@@ -83,6 +95,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory }) => {
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .insert({
+          venue_id: venueId,
           customer_name: customerName,
           phone_number: phoneNumber,
           platform: platform,
@@ -99,18 +112,22 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory }) => {
 
       // 2. Insert drinks if any
       if (selectedDrinks.length > 0) {
-        const drinksToInsert = selectedDrinks.map(sd => ({
-          booking_id: bookingData.id,
-          drink_id: sd.drinkId,
-          quantity: sd.quantity,
-          price_at_time: sd.priceAtTime
-        }));
+        const drinksToInsert = selectedDrinks
+          .filter(sd => typeof sd.quantity === 'number' && sd.quantity > 0)
+          .map(sd => ({
+            booking_id: bookingData.id,
+            drink_id: sd.drinkId,
+            quantity: sd.quantity as number,
+            price_at_time: sd.priceAtTime
+          }));
 
-        const { error: drinksError } = await supabase
-          .from('booking_drinks')
-          .insert(drinksToInsert);
+        if (drinksToInsert.length > 0) {
+          const { error: drinksError } = await supabase
+            .from('booking_drinks')
+            .insert(drinksToInsert);
 
-        if (drinksError) throw drinksError;
+          if (drinksError) throw drinksError;
+        }
       }
 
       // Success Reset
@@ -236,16 +253,17 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory }) => {
               {extraHoursEnabled ? (
                 <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="flex gap-2">
-                    <div className="flex-1">
-                      <input
-                        type="number"
-                        min="0.5"
-                        step="0.5"
+                    <div className="flex-1 relative group">
+                      <select
                         value={extraHoursDuration}
                         onChange={(e) => setExtraHoursDuration(Number(e.target.value))}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
-                        placeholder="Hours"
-                      />
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500 appearance-none cursor-pointer pr-8"
+                      >
+                        {[0.5, 1, 1.5, 2, 2.5, 3].map(h => (
+                          <option key={h} value={h}>{h} {h === 1 ? 'Hour' : 'Hours'}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
                     </div>
                     <div className="flex-1">
                       <input
@@ -321,13 +339,14 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory }) => {
                         type="number"
                         min="1"
                         value={sd.quantity}
-                        onChange={(e) => handleUpdateQty(index, Number(e.target.value))}
+                        onChange={(e) => handleUpdateQty(index, e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none"
+                        placeholder="Qty"
                       />
                     </div>
                     <div className="min-w-[80px] text-right">
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Subtotal</p>
-                      <p className="text-sm font-black text-slate-900">₹{sd.priceAtTime * sd.quantity}</p>
+                      <p className="text-sm font-black text-slate-900">₹{sd.priceAtTime * (Number(sd.quantity) || 0)}</p>
                     </div>
                     <button
                       type="button"

@@ -14,7 +14,7 @@ export interface DrinkInventoryItem {
 
 export interface SelectedDrink {
   drinkId: string;
-  quantity: number;
+  quantity: number | '';
   priceAtTime: number;
 }
 
@@ -34,8 +34,25 @@ export interface Booking {
   timestamp: number;
 }
 
+export enum Sport {
+  BADMINTON = 'Badminton',
+  PICKLEBALL = 'PickleBall',
+  PADEL = 'Padel',
+  TABLETENNIS = 'TableTennis',
+  TURF = 'Turf',
+}
+
+export interface VenueProfile {
+  id: string;
+  admin_name: string;
+  admin_email: string;
+  venue_name: string;
+  available_sports: Sport[];
+}
+
 export interface AppState {
-  user: { name: string } | null;
+  user: { id: string; email?: string } | null;
+  profile: VenueProfile | null;
   bookings: Booking[];
   inventory: DrinkInventoryItem[];
 }

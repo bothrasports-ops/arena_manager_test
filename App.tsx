@@ -22,24 +22,56 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard'>('new');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [appState, setAppState] = useState<AppState>(() => {
-    const savedUser = localStorage.getItem('arena_sync_user');
-    return {
-      user: savedUser ? JSON.parse(savedUser) : null,
-      bookings: [],
-      inventory: []
-    };
+  const [appState, setAppState] = useState<AppState>({
+    user: null,
+    profile: null,
+    bookings: [],
+    inventory: []
   });
+
+  // Handle Auth Session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email } }));
+      } else {
+        setLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email } }));
+      } else {
+        setAppState(prev => ({ ...prev, user: null, profile: null, bookings: [], inventory: [] }));
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Fetch initial data from Supabase
   const fetchData = async () => {
+    if (!appState.user) return;
+
     setLoading(true);
     setFetchError(null);
     try {
+      // Fetch Profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', appState.user.id)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') throw profileError;
+
       // Fetch Inventory
       const { data: inventoryData, error: invError } = await supabase
         .from('inventory')
         .select('*')
+        .eq('venue_id', appState.user.id)
         .order('name');
 
       if (invError) throw invError;
@@ -55,6 +87,7 @@ const App: React.FC = () => {
             price_at_time
           )
         `)
+        .eq('venue_id', appState.user.id)
         .order('created_at', { ascending: false });
 
       if (bookError) throw bookError;
@@ -81,6 +114,7 @@ const App: React.FC = () => {
 
       setAppState(prev => ({
         ...prev,
+        profile: profileData,
         inventory: inventoryData || [],
         bookings: mappedBookings
       }));
@@ -98,25 +132,22 @@ const App: React.FC = () => {
     }
   }, [appState.user]);
 
-  const handleLogin = (username: string, password: string): boolean => {
-    if (username === 'admin' && password === 'arena2024') {
-      const user = { name: username };
-      setAppState(prev => ({ ...prev, user }));
-      localStorage.setItem('arena_sync_user', JSON.stringify(user));
-      return true;
-    }
-    return false;
-  };
-
-  const handleLogout = () => {
-    setAppState(prev => ({ ...prev, user: null }));
-    localStorage.removeItem('arena_sync_user');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const refreshData = () => fetchData();
 
+  if (loading && !appState.user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
+      </div>
+    );
+  }
+
   if (!appState.user) {
-    return <LoginForm onLogin={handleLogin} />;
+    return <LoginForm onAuthSuccess={fetchData} />;
   }
 
   return (
@@ -139,7 +170,7 @@ const App: React.FC = () => {
               <RefreshCw className="w-4 h-4" />
             </button>
             <span className="hidden sm:inline text-sm text-slate-500 font-medium">
-              Welcome, <span className="text-slate-900">{appState.user.name}</span>
+              {appState.profile?.venue_name || 'Arena'}
             </span>
             <button
               onClick={handleLogout}
@@ -210,6 +241,7 @@ const App: React.FC = () => {
                   <BookingForm
                     onSave={refreshData}
                     inventory={appState.inventory}
+                    venueId={appState.user?.id}
                   />
                 )}
                 {activeTab === 'list' && (
@@ -223,6 +255,7 @@ const App: React.FC = () => {
                     inventory={appState.inventory}
                     bookings={appState.bookings}
                     onUpdate={refreshData}
+                    venueId={appState.user?.id}
                   />
                 )}
               </>
