@@ -4,24 +4,20 @@ import {
   Package,
   Plus,
   Trash2,
-  Info,
   IndianRupee,
-  Database,
   RefreshCw,
-  AlertTriangle,
-  FileText,
   Loader2
 } from 'lucide-react';
 import { DrinkInventoryItem, Booking } from '../types';
 import { supabase } from '../lib/supabase';
 
-interface SettingsProps {
+interface InventoryProps {
   inventory: DrinkInventoryItem[];
   bookings: Booking[];
   onUpdate: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ inventory, bookings, onUpdate }) => {
+const Inventory: React.FC<InventoryProps> = ({ inventory, bookings, onUpdate }) => {
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState<number | ''>(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -85,7 +81,7 @@ const Settings: React.FC<SettingsProps> = ({ inventory, bookings, onUpdate }) =>
         <div className="bg-indigo-600 px-6 py-4 flex items-center justify-between">
           <h2 className="text-white font-bold text-lg flex items-center gap-2">
             <Package className="w-5 h-5" />
-            Inventory Cloud Management
+            Inventory Management
           </h2>
           {isProcessing && <Loader2 className="w-4 h-4 text-white/50 animate-spin" />}
         </div>
@@ -133,11 +129,11 @@ const Settings: React.FC<SettingsProps> = ({ inventory, bookings, onUpdate }) =>
           <div className="space-y-3">
             <h3 className="text-slate-900 font-bold text-sm uppercase tracking-wider px-2 flex items-center gap-2">
               <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
-              Live Database Inventory
+              Current Stock
             </h3>
             {inventory.length === 0 ? (
               <div className="py-12 text-center border-2 border-dashed border-slate-100 rounded-3xl text-slate-400 italic">
-                No items in database.
+                No items in inventory.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3">
@@ -177,56 +173,11 @@ const Settings: React.FC<SettingsProps> = ({ inventory, bookings, onUpdate }) =>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-        <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-white font-bold text-lg flex items-center gap-2">
-            <Database className="w-5 h-5" />
-            Supabase Stats
-          </h2>
-        </div>
-
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Record Counts</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Bookings</p>
-                  <p className="text-2xl font-black text-slate-900">{bookings.length}</p>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Drink Items</p>
-                  <p className="text-2xl font-black text-slate-900">{inventory.length}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em]">Cloud Status</h3>
-              <div className="p-4 border border-indigo-100 rounded-2xl bg-indigo-50/30 flex items-center gap-3">
-                <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-sm font-bold text-indigo-900 uppercase">Connected to Production</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
-             <div className="w-10 h-10 shrink-0 bg-white rounded-xl shadow-sm flex items-center justify-center">
-                <FileText className="w-5 h-5 text-indigo-600" />
-             </div>
-             <div>
-                <h4 className="text-sm font-bold text-slate-900">Enterprise Database</h4>
-                <p className="text-xs text-slate-500 mt-0.5">Your data is now globally synchronized and persisted on Supabase Cloud Infrastructure.</p>
-             </div>
-          </div>
-        </div>
-      </div>
-
       <p className="text-center text-slate-400 text-xs pb-12">
-        ArenaSync Enterprise &bull; Cloud Storage: Supabase PostgreSQL
+        ArenaSync Enterprise &bull; Inventory Management System
       </p>
     </div>
   );
 };
 
-export default Settings;
+export default Inventory;
