@@ -53,6 +53,24 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
   const [extraHoursDuration, setExtraHoursDuration] = useState<number>(0.5);
   const [extraHoursAmount, setExtraHoursAmount] = useState<number | ''>(0);
 
+  const timeSlots = useMemo(() => {
+    const slots = [];
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const hour24 = h.toString().padStart(2, '0');
+        const minute = m.toString().padStart(2, '0');
+        const time24 = `${hour24}:${minute}`;
+
+        const period = h >= 12 ? 'PM' : 'AM';
+        const hour12 = h % 12 === 0 ? 12 : h % 12;
+        const display = `${hour12}:${minute} ${period}`;
+
+        slots.push({ value: time24, label: display });
+      }
+    }
+    return slots;
+  }, []);
+
   const calculateHours = (start: string, end: string) => {
     const [startH, startM] = start.split(':').map(Number);
     const [endH, endM] = end.split(':').map(Number);
@@ -238,24 +256,32 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                   <label className="text-xs font-bold text-slate-500 uppercase">Start Time</label>
                   <div className="relative">
                     <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input
-                      type="time"
+                    <select
                       value={bookingStartTime}
                       onChange={(e) => setBookingStartTime(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
-                    />
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                    >
+                      {timeSlots.map(slot => (
+                        <option key={`start-${slot.value}`} value={slot.value}>{slot.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">End Time</label>
                   <div className="relative">
                     <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input
-                      type="time"
+                    <select
                       value={bookingEndTime}
                       onChange={(e) => setBookingEndTime(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
-                    />
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                    >
+                      {timeSlots.map(slot => (
+                        <option key={`end-${slot.value}`} value={slot.value}>{slot.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
                 </div>
               </div>
