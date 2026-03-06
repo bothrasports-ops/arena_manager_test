@@ -111,6 +111,7 @@ const App: React.FC = () => {
         bookingStartTime: b.booking_start_time,
         bookingEndTime: b.booking_end_time,
         bookingDate: b.booking_date,
+        sport: b.sport,
         totalHours: b.total_hours,
         totalAmount: b.total_amount,
         timestamp: new Date(b.created_at).getTime()
@@ -246,6 +247,7 @@ const App: React.FC = () => {
                     onSave={refreshData}
                     inventory={appState.inventory}
                     venueId={appState.user?.id}
+                    availableSports={appState.profile?.available_sports || []}
                   />
                 )}
                 {activeTab === 'list' && (
