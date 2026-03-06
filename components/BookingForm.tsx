@@ -39,6 +39,17 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
   const [bookingAmount, setBookingAmount] = useState<number | ''>(0);
   const [selectedDrinks, setSelectedDrinks] = useState<SelectedDrink[]>([]);
   const [extraHoursEnabled, setExtraHoursEnabled] = useState(false);
+
+  // Sync inventory with selectedDrinks
+  React.useEffect(() => {
+    if (inventory.length > 0 && selectedDrinks.length === 0) {
+      setSelectedDrinks(inventory.map(item => ({
+        drinkId: item.id,
+        quantity: 0,
+        priceAtTime: item.price
+      })));
+    }
+  }, [inventory, selectedDrinks.length]);
   const [extraHoursDuration, setExtraHoursDuration] = useState<number>(0.5);
   const [extraHoursAmount, setExtraHoursAmount] = useState<number | ''>(0);
 
@@ -66,42 +77,15 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
     return (Number(bookingAmount) || 0) + drinksTotal + extraTotal;
   }, [bookingAmount, selectedDrinks, extraHoursEnabled, extraHoursAmount]);
 
-  const handleAddDrink = () => {
-    if (inventory.length === 0) {
-      alert("Inventory is empty! Go to the 'Settings' tab to add items (e.g. Water, Soda) first.");
-      return;
-    }
-    const firstItem = inventory[0];
-    setSelectedDrinks([...selectedDrinks, {
-      drinkId: firstItem.id,
-      quantity: 1,
-      priceAtTime: firstItem.price
-    }]);
-  };
-
-  const handleRemoveDrink = (index: number) => {
-    setSelectedDrinks(selectedDrinks.filter((_, i) => i !== index));
-  };
-
-  const handleUpdateDrink = (index: number, drinkId: string) => {
-    const item = inventory.find(i => i.id === drinkId);
-    if (!item) return;
-    const updated = [...selectedDrinks];
-    updated[index] = { ...updated[index], drinkId: item.id, priceAtTime: item.price };
-    setSelectedDrinks(updated);
-  };
-
-  const handleUpdateQty = (index: number, val: string) => {
-    const updated = [...selectedDrinks];
-    if (val === '') {
-      updated[index].quantity = '';
-    } else {
-      const num = Number(val);
-      if (!isNaN(num)) {
-        updated[index].quantity = num;
+  const handleUpdateQty = (drinkId: string, val: string) => {
+    setSelectedDrinks(prev => prev.map(sd => {
+      if (sd.drinkId === drinkId) {
+        if (val === '') return { ...sd, quantity: '' };
+        const num = Number(val);
+        return { ...sd, quantity: isNaN(num) ? 0 : num };
       }
-    }
-    setSelectedDrinks(updated);
+      return sd;
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -162,7 +146,11 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
       setPhoneNumber('');
       setBookingDate(new Date().toISOString().split('T')[0]);
       setBookingAmount(0);
-      setSelectedDrinks([]);
+      setSelectedDrinks(inventory.map(item => ({
+        drinkId: item.id,
+        quantity: 0,
+        priceAtTime: item.price
+      })));
       setExtraHoursEnabled(false);
       onSave(); // Refresh global data
       alert("Booking saved successfully!");
@@ -384,19 +372,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
               <Package className="w-4 h-4 text-indigo-500" />
               3. Inventory & Drinks
             </h3>
-            <button
-              type="button"
-              onClick={handleAddDrink}
-              title={inventory.length === 0 ? "Inventory is empty! Add items in Settings first." : "Add a drink item"}
-              className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all border ${
-                inventory.length > 0
-                  ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-100'
-                  : 'text-slate-400 bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed'
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Drink Item
-            </button>
           </div>
 
           <div className="grid grid-cols-1 gap-3">
@@ -406,49 +381,35 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                 <p className="text-slate-500 text-sm font-medium">Your Inventory is currently empty</p>
                 <p className="text-slate-400 text-xs mt-1">Visit the 'Settings' tab to add items before adding them to a booking.</p>
               </div>
-            ) : selectedDrinks.length === 0 ? (
-              <div className="text-center py-6 border-2 border-dashed border-slate-100 rounded-2xl">
-                 <p className="text-slate-400 text-sm">Click "Add Drink" to include refreshments in this booking.</p>
-              </div>
             ) : (
-              selectedDrinks.map((sd, index) => (
-                <div key={index} className="flex flex-wrap items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl animate-in zoom-in-95 duration-200 shadow-sm">
-                  <div className="flex-1 min-w-[180px]">
-                    <select
-                      value={sd.drinkId}
-                      onChange={(e) => handleUpdateDrink(index, e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none"
-                    >
-                      {inventory.map(item => (
-                        <option key={item.id} value={item.id}>{item.name} (₹{item.price})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-20">
-                      <input
-                        type="number"
-                        min="1"
-                        value={sd.quantity}
-                        onChange={(e) => handleUpdateQty(index, e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none"
-                        placeholder="Qty"
-                      />
+              inventory.map((item) => {
+                const selectedDrink = selectedDrinks.find(sd => sd.drinkId === item.id) || { quantity: 0, priceAtTime: item.price };
+                return (
+                  <div key={item.id} className="flex flex-wrap items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl animate-in zoom-in-95 duration-200 shadow-sm">
+                    <div className="flex-1 min-w-[180px]">
+                      <p className="font-bold text-slate-700">{item.name}</p>
+                      <p className="text-xs text-slate-400">Price: ₹{item.price}</p>
                     </div>
-                    <div className="min-w-[80px] text-right">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">Subtotal</p>
-                      <p className="text-sm font-black text-slate-900">₹{sd.priceAtTime * (Number(sd.quantity) || 0)}</p>
+                    <div className="flex items-center gap-3">
+                      <div className="w-24">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Quantity</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={selectedDrink.quantity}
+                          onChange={(e) => handleUpdateQty(item.id, e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="min-w-[80px] text-right">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Subtotal</p>
+                        <p className="text-sm font-black text-slate-900">₹{(Number(selectedDrink.quantity) || 0) * item.price}</p>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveDrink(index)}
-                      className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </section>
