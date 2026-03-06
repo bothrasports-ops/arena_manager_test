@@ -36,6 +36,7 @@ export interface Booking {
   bookingEndTime: string;
   bookingDate: string;
   totalHours: number;
+  sport: Sport;
 }
 
 export enum Sport {

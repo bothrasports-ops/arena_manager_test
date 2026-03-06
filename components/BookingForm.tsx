@@ -14,22 +14,25 @@ import {
   Layers,
   Loader2,
   AlertCircle,
+  Trophy,
   ChevronDown
 } from 'lucide-react';
-import { Booking, Platform, DrinkInventoryItem, SelectedDrink } from '../types';
+import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface BookingFormProps {
   onSave: () => void;
   inventory: DrinkInventoryItem[];
   venueId?: string;
+  availableSports: Sport[];
 }
 
-const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId }) => {
+const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, availableSports }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [platform, setPlatform] = useState<Platform>(Platform.PLAYO);
+  const [sport, setSport] = useState<Sport>(availableSports[0] || Sport.BADMINTON);
   const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
   const [bookingStartTime, setBookingStartTime] = useState('10:00');
   const [bookingEndTime, setBookingEndTime] = useState('11:00');
@@ -118,6 +121,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId })
           customer_name: customerName,
           phone_number: phoneNumber,
           platform: platform,
+          sport: sport,
           booking_date: bookingDate,
           booking_start_time: bookingStartTime,
           booking_end_time: bookingEndTime,
@@ -265,6 +269,28 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId })
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
                     />
                   </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase">Select Sport</label>
+                <div className="relative">
+                  <Trophy className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <select
+                    value={sport}
+                    onChange={(e) => setSport(e.target.value as Sport)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                  >
+                    {availableSports.length > 0 ? (
+                      availableSports.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))
+                    ) : (
+                      Object.values(Sport).map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))
+                    )}
+                  </select>
                 </div>
               </div>
 

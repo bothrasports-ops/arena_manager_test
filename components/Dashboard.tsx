@@ -9,9 +9,10 @@ import {
   ArrowDownRight,
   ShoppingBag,
   ChevronDown,
-  Clock
+  Clock,
+  Trophy
 } from 'lucide-react';
-import { Booking, DrinkInventoryItem } from '../types';
+import { Booking, DrinkInventoryItem, Sport } from '../types';
 
 interface DashboardProps {
   bookings: Booking[];
@@ -22,6 +23,7 @@ type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
+  const [sportFilter, setSportFilter] = useState<string>('All');
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -35,9 +37,12 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
 
-    // Filter bookings based on selected time range
+    // Filter bookings based on selected time range and sport
     const filteredBookings = bookings.filter(booking => {
       const date = new Date(booking.timestamp);
+
+      const matchesSport = sportFilter === 'All' || booking.sport === sportFilter;
+      if (!matchesSport) return false;
 
       switch (timeRange) {
         case 'daily':
@@ -109,35 +114,63 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
       rangeLabel: rangeLabels[timeRange],
       rangeSubtitle: rangeSubtitles[timeRange]
     };
-  }, [bookings, inventory, timeRange]);
+  }, [bookings, inventory, timeRange, sportFilter]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-      {/* Time Range Selector */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
-            <Clock className="w-5 h-5 text-indigo-600" />
+      {/* Filters Selector */}
+      <div className="flex flex-col md:flex-row items-center gap-4">
+        <div className="flex-1 w-full flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
+              <Clock className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Analytics Period</h3>
+              <p className="text-xs text-slate-500 font-medium">Viewing data for {stats.rangeLabel.toLowerCase()}</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Analytics Period</h3>
-            <p className="text-xs text-slate-500 font-medium">Viewing data for {stats.rangeLabel.toLowerCase()}</p>
+
+          <div className="relative group">
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+              className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
           </div>
         </div>
 
-        <div className="relative group">
-          <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value as TimeRange)}
-            className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="yearly">Yearly</option>
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+        <div className="flex-1 w-full flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center border border-amber-100">
+              <Trophy className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Sport Filter</h3>
+              <p className="text-xs text-slate-500 font-medium">{sportFilter === 'All' ? 'All sports included' : `Showing ${sportFilter}`}</p>
+            </div>
+          </div>
+
+          <div className="relative group">
+            <select
+              value={sportFilter}
+              onChange={(e) => setSportFilter(e.target.value)}
+              className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
+            >
+              <option value="All">All Sports</option>
+              {Object.values(Sport).map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+          </div>
         </div>
       </div>
 

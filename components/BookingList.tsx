@@ -13,10 +13,11 @@ import {
   ChevronUp,
   Package,
   IndianRupee,
+  Trophy,
   User as UserIcon,
   Globe
 } from 'lucide-react';
-import { Booking, Platform, DrinkInventoryItem } from '../types';
+import { Booking, Platform, DrinkInventoryItem, Sport } from '../types';
 
 interface BookingListProps {
   bookings: Booking[];
@@ -26,13 +27,15 @@ interface BookingListProps {
 const BookingList: React.FC<BookingListProps> = ({ bookings, inventory }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [platformFilter, setPlatformFilter] = useState<string>('All');
+  const [sportFilter, setSportFilter] = useState<string>('All');
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
 
   const filteredBookings = bookings.filter(b => {
     const matchesSearch = b.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           b.phoneNumber.includes(searchTerm);
     const matchesPlatform = platformFilter === 'All' || b.platform === platformFilter;
-    return matchesSearch && matchesPlatform;
+    const matchesSport = sportFilter === 'All' || b.sport === sportFilter;
+    return matchesSearch && matchesPlatform && matchesSport;
   });
 
   const totalRevenue = filteredBookings.reduce((sum, b) => sum + b.totalAmount, 0);
@@ -117,6 +120,19 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory }) => {
             ))}
           </select>
         </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Trophy className="w-4 h-4 text-slate-400" />
+          <select
+            value={sportFilter}
+            onChange={(e) => setSportFilter(e.target.value)}
+            className="w-full md:w-auto px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
+          >
+            <option value="All">All Sports</option>
+            {Object.values(Sport).map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Bookings List */}
@@ -147,6 +163,9 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory }) => {
                       {booking.customerName}
                       <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase tracking-tighter ${getPlatformStyle(booking.platform)}`}>
                         {booking.platform}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 uppercase tracking-tighter">
+                        {booking.sport}
                       </span>
                     </h3>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
