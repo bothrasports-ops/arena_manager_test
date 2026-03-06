@@ -108,6 +108,10 @@ const App: React.FC = () => {
           duration: b.extra_hours_duration,
           amount: b.extra_hours_amount
         },
+        bookingStartTime: b.booking_start_time,
+        bookingEndTime: b.booking_end_time,
+        bookingDate: b.booking_date,
+        totalHours: b.total_hours,
         totalAmount: b.total_amount,
         timestamp: new Date(b.created_at).getTime()
       }));

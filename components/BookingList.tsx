@@ -156,7 +156,11 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory }) => {
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                         <Calendar className="w-3.5 h-3.5" />
-                        {new Date(booking.timestamp).toLocaleDateString()} at {new Date(booking.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {booking.bookingDate}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-indigo-600 font-bold">
+                        <Clock className="w-3.5 h-3.5" />
+                        {booking.bookingStartTime} - {booking.bookingEndTime} ({booking.totalHours} {booking.totalHours === 1 ? 'Hr' : 'Hrs'})
                       </div>
                     </div>
                   </div>

@@ -8,6 +8,7 @@ import {
   Plus,
   Trash2,
   Clock,
+  Calendar,
   CheckCircle2,
   Package,
   Layers,
@@ -29,11 +30,29 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId })
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [platform, setPlatform] = useState<Platform>(Platform.PLAYO);
+  const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [bookingStartTime, setBookingStartTime] = useState('10:00');
+  const [bookingEndTime, setBookingEndTime] = useState('11:00');
   const [bookingAmount, setBookingAmount] = useState<number | ''>(0);
   const [selectedDrinks, setSelectedDrinks] = useState<SelectedDrink[]>([]);
   const [extraHoursEnabled, setExtraHoursEnabled] = useState(false);
   const [extraHoursDuration, setExtraHoursDuration] = useState<number>(0.5);
   const [extraHoursAmount, setExtraHoursAmount] = useState<number | ''>(0);
+
+  const calculateHours = (start: string, end: string) => {
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+
+    let diff = (endH + endM / 60) - (startH + startM / 60);
+    if (diff < 0) diff += 24; // Handle overnight bookings
+    return diff;
+  };
+
+  const totalHours = useMemo(() => {
+    const baseHours = calculateHours(bookingStartTime, bookingEndTime);
+    const extra = extraHoursEnabled ? Number(extraHoursDuration) : 0;
+    return Number((baseHours + extra).toFixed(2));
+  }, [bookingStartTime, bookingEndTime, extraHoursEnabled, extraHoursDuration]);
 
   const totalAmount = useMemo(() => {
     const drinksTotal = selectedDrinks.reduce((acc, drink) => {
@@ -92,13 +111,17 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId })
     setIsSubmitting(true);
     try {
       // 1. Insert main booking
-      const { data: bookingData, error: bookingError } = await supabase
+          const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .insert({
           venue_id: venueId,
           customer_name: customerName,
           phone_number: phoneNumber,
           platform: platform,
+          booking_date: bookingDate,
+          booking_start_time: bookingStartTime,
+          booking_end_time: bookingEndTime,
+          total_hours: totalHours,
           booking_amount: Number(bookingAmount) || 0,
           extra_hours_enabled: extraHoursEnabled,
           extra_hours_duration: extraHoursDuration,
@@ -133,6 +156,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId })
       // Success Reset
       setCustomerName('');
       setPhoneNumber('');
+      setBookingDate(new Date().toISOString().split('T')[0]);
       setBookingAmount(0);
       setSelectedDrinks([]);
       setExtraHoursEnabled(false);
@@ -203,6 +227,47 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId })
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase">Booking Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    type="date"
+                    required
+                    value={bookingDate}
+                    onChange={(e) => setBookingDate(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Start Time</label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input
+                      type="time"
+                      value={bookingStartTime}
+                      onChange={(e) => setBookingStartTime(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">End Time</label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input
+                      type="time"
+                      value={bookingEndTime}
+                      onChange={(e) => setBookingEndTime(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-500 uppercase">Select Platform</label>
                 <div className="relative">
@@ -364,7 +429,14 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId })
 
         {/* Footer & Totals */}
         <div className="pt-8 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Hours</p>
+               <div className="flex items-baseline gap-1">
+                 <span className="text-2xl font-black text-slate-900 tracking-tighter">{totalHours}</span>
+                 <span className="text-xs font-bold text-slate-500 uppercase">{totalHours === 1 ? 'Hr' : 'Hrs'}</span>
+               </div>
+            </div>
             <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Total Payable Amount</p>
                <div className="flex items-baseline gap-1">
