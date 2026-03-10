@@ -15,7 +15,7 @@ import BookingList from './components/BookingList';
 import Inventory from './components/Inventory';
 import Dashboard from './components/Dashboard';
 import LoginForm from './components/LoginForm';
-import { AppState, Booking, DrinkInventoryItem } from './types';
+import { AppState, Booking, DrinkInventoryItem, Sport } from './types';
 import { supabase } from './lib/supabase';
 
 const App: React.FC = () => {
@@ -111,7 +111,7 @@ const App: React.FC = () => {
         bookingStartTime: b.booking_start_time,
         bookingEndTime: b.booking_end_time,
         bookingDate: b.booking_date,
-        sport: b.sport,
+        sport: b.sport as Sport,
         totalHours: b.total_hours,
         totalAmount: b.total_amount,
         timestamp: new Date(b.created_at).getTime()
@@ -142,6 +142,37 @@ const App: React.FC = () => {
   };
 
   const refreshData = () => fetchData();
+
+  const handleDeleteBooking = async (id: string) => {
+    try {
+      // Delete related drinks first (if not CASCADE)
+      const { error: drinksError } = await supabase
+        .from('booking_drinks')
+        .delete()
+        .eq('booking_id', id);
+
+      if (drinksError) throw drinksError;
+
+      // Delete the booking
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .delete()
+        .eq('id', id);
+
+      if (bookingError) throw bookingError;
+
+      // Refresh local state
+      setAppState(prev => ({
+        ...prev,
+        bookings: prev.bookings.filter(b => b.id !== id)
+      }));
+
+      alert('Booking deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting booking:', error);
+      alert(`Failed to delete booking: ${error.message}`);
+    }
+  };
 
   if (loading && !appState.user) {
     return (
@@ -254,6 +285,7 @@ const App: React.FC = () => {
                   <BookingList
                     bookings={appState.bookings}
                     inventory={appState.inventory}
+                    onDelete={handleDeleteBooking}
                   />
                 )}
                 {activeTab === 'inventory' && (

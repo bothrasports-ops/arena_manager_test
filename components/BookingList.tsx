@@ -15,6 +15,7 @@ import {
   IndianRupee,
   Trophy,
   User as UserIcon,
+  Trash2,
   Globe
 } from 'lucide-react';
 import { Booking, Platform, DrinkInventoryItem, Sport } from '../types';
@@ -22,9 +23,10 @@ import { Booking, Platform, DrinkInventoryItem, Sport } from '../types';
 interface BookingListProps {
   bookings: Booking[];
   inventory: DrinkInventoryItem[];
+  onDelete?: (id: string) => void;
 }
 
-const BookingList: React.FC<BookingListProps> = ({ bookings, inventory }) => {
+const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, onDelete }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [platformFilter, setPlatformFilter] = useState<string>('All');
   const [sportFilter, setSportFilter] = useState<string>('All');
@@ -190,8 +192,24 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory }) => {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Grand Total</p>
                     <p className="text-2xl font-black text-slate-900">₹{booking.totalAmount}</p>
                   </div>
-                  <div className={`p-1.5 rounded-full transition-colors ${expandedBookingId === booking.id ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
-                    {expandedBookingId === booking.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                  <div className="flex items-center gap-2">
+                    {onDelete && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Are you sure you want to delete this booking?')) {
+                            onDelete(booking.id);
+                          }
+                        }}
+                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                        title="Delete Booking"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    )}
+                    <div className={`p-1.5 rounded-full transition-colors ${expandedBookingId === booking.id ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
+                      {expandedBookingId === booking.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                    </div>
                   </div>
                 </div>
               </div>
