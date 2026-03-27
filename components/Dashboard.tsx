@@ -6,28 +6,30 @@ import {
   Package,
   Calendar,
   ArrowUpRight,
-  ArrowDownRight,
   ShoppingBag,
   ChevronDown,
   Clock,
-  Trophy
+  Trophy,
+  Coins,
+  CreditCard,
+  GraduationCap
 } from 'lucide-react';
-import { Booking, DrinkInventoryItem, Sport } from '../types';
+import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType } from '../types';
 
 interface DashboardProps {
   bookings: Booking[];
   inventory: DrinkInventoryItem[];
+  posSales: PosSale[];
 }
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
-const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
+const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
   const [sportFilter, setSportFilter] = useState<string>('All');
 
   const stats = useMemo(() => {
     const now = new Date();
-    const currentDay = now.getDate();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     const currentQuarter = Math.floor(currentMonth / 3);
@@ -37,13 +39,8 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
 
-    // Filter bookings based on selected time range and sport
-    const filteredBookings = bookings.filter(booking => {
-      const date = new Date(booking.timestamp);
-
-      const matchesSport = sportFilter === 'All' || booking.sport === sportFilter;
-      if (!matchesSport) return false;
-
+    const isInRange = (dateInput: string | number) => {
+      const date = new Date(dateInput);
       switch (timeRange) {
         case 'daily':
           return date.toDateString() === now.toDateString();
@@ -58,30 +55,79 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
         default:
           return true;
       }
+    };
+
+    // Filter bookings based on selected time range and sport
+    const filteredBookings = bookings.filter(booking => {
+      const matchesSport = sportFilter === 'All' || booking.sport === sportFilter;
+      if (!matchesSport) return false;
+      return isInRange(booking.timestamp);
     });
 
+    // Filter POS sales based on time range
+    const filteredPosSales = posSales.filter(sale => isInRange(sale.createdAt));
+
     // Calculate drink sales breakdown
-    const drinkSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
+    const drinkSales: Record<string, { name: string; quantity: number; revenue: number; cost: number }> = {};
 
     // Initialize with all inventory items
     inventory.forEach(item => {
-      drinkSales[item.id] = { name: item.name, quantity: 0, revenue: 0 };
+      drinkSales[item.id] = { name: item.name, quantity: 0, revenue: 0, cost: 0 };
     });
 
     let totalDrinksSold = 0;
     let totalDrinkRevenue = 0;
+    let totalDrinkCost = 0;
     let totalBookingRevenue = 0;
+    let totalMembershipRevenue = 0;
+    let totalCoachingRevenue = 0;
 
+    // Process Bookings
     filteredBookings.forEach(booking => {
-      totalBookingRevenue += Number(booking.bookingAmount) + (booking.extraHours.enabled ? Number(booking.extraHours.amount) : 0);
+      const bookingType = booking.bookingType || BookingType.COURT;
+
+      if (bookingType === BookingType.COURT) {
+        totalBookingRevenue += Number(booking.bookingAmount) + (booking.extraHours.enabled ? Number(booking.extraHours.amount) : 0);
+      } else if (bookingType === BookingType.MEMBERSHIP) {
+        totalMembershipRevenue += Number(booking.bookingAmount);
+      } else if (bookingType === BookingType.COACHING) {
+        totalCoachingRevenue += Number(booking.coachingFee || 0);
+      }
 
       booking.selectedDrinks.forEach(drink => {
+        const invItem = inventory.find(i => i.id === drink.drinkId);
         if (drinkSales[drink.drinkId]) {
           const qty = Number(drink.quantity) || 0;
+          const sellPrice = Number(drink.priceAtTime);
+          const purchasePrice = invItem?.purchasePrice || 0;
+
           drinkSales[drink.drinkId].quantity += qty;
-          drinkSales[drink.drinkId].revenue += qty * Number(drink.priceAtTime);
+          drinkSales[drink.drinkId].revenue += qty * sellPrice;
+          drinkSales[drink.drinkId].cost += qty * purchasePrice;
+
           totalDrinksSold += qty;
-          totalDrinkRevenue += qty * Number(drink.priceAtTime);
+          totalDrinkRevenue += qty * sellPrice;
+          totalDrinkCost += qty * purchasePrice;
+        }
+      });
+    });
+
+    // Process POS Sales
+    filteredPosSales.forEach(sale => {
+      sale.items.forEach(item => {
+        const invItem = inventory.find(i => i.id === item.drinkId);
+        if (drinkSales[item.drinkId]) {
+          const qty = Number(item.quantity) || 0;
+          const sellPrice = Number(item.priceAtTime);
+          const purchasePrice = invItem?.purchasePrice || 0;
+
+          drinkSales[item.drinkId].quantity += qty;
+          drinkSales[item.drinkId].revenue += qty * sellPrice;
+          drinkSales[item.drinkId].cost += qty * purchasePrice;
+
+          totalDrinksSold += qty;
+          totalDrinkRevenue += qty * sellPrice;
+          totalDrinkCost += qty * purchasePrice;
         }
       });
     });
@@ -104,17 +150,24 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
       yearly: `${currentYear}`
     };
 
+    const totalRevenue = totalDrinkRevenue + totalBookingRevenue + totalMembershipRevenue + totalCoachingRevenue;
+    const totalProfit = (totalDrinkRevenue - totalDrinkCost) + totalBookingRevenue + totalMembershipRevenue + totalCoachingRevenue;
+
     return {
       totalDrinksSold,
       totalDrinkRevenue,
+      totalDrinkCost,
       totalBookingRevenue,
-      totalRevenue: totalDrinkRevenue + totalBookingRevenue,
+      totalMembershipRevenue,
+      totalCoachingRevenue,
+      totalRevenue,
+      totalProfit,
       salesBreakdown: sortedSales,
       bookingCount: filteredBookings.length,
       rangeLabel: rangeLabels[timeRange],
       rangeSubtitle: rangeSubtitles[timeRange]
     };
-  }, [bookings, inventory, timeRange, sportFilter]);
+  }, [bookings, inventory, posSales, timeRange, sportFilter]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
@@ -175,13 +228,20 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
       </div>
 
       {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
           title={`${stats.rangeLabel} Revenue`}
           value={`₹${stats.totalRevenue.toLocaleString()}`}
           subtitle={stats.rangeSubtitle}
           icon={<TrendingUp className="w-6 h-6 text-emerald-600" />}
           color="emerald"
+        />
+        <StatCard
+          title="Estimated Profit"
+          value={`₹${stats.totalProfit.toLocaleString()}`}
+          subtitle="Revenue - Cost"
+          icon={<Coins className="w-6 h-6 text-blue-600" />}
+          color="indigo"
         />
         <StatCard
           title="Drinks Sold"
@@ -197,6 +257,38 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
           icon={<Calendar className="w-6 h-6 text-amber-600" />}
           color="amber"
         />
+      </div>
+
+      {/* Revenue Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200">
+          <h3 className="text-slate-900 font-bold mb-2 flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-slate-500" />
+            Court Revenue
+          </h3>
+          <p className="text-2xl font-black text-slate-900">₹{stats.totalBookingRevenue.toLocaleString()}</p>
+        </div>
+        <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
+          <h3 className="text-indigo-900 font-bold mb-2 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-indigo-500" />
+            Membership
+          </h3>
+          <p className="text-2xl font-black text-indigo-600">₹{stats.totalMembershipRevenue.toLocaleString()}</p>
+        </div>
+        <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100">
+          <h3 className="text-amber-900 font-bold mb-2 flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-amber-500" />
+            Coaching
+          </h3>
+          <p className="text-2xl font-black text-amber-600">₹{stats.totalCoachingRevenue.toLocaleString()}</p>
+        </div>
+        <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100">
+          <h3 className="text-emerald-900 font-bold mb-2 flex items-center gap-2">
+            <ShoppingBag className="w-4 h-4 text-emerald-500" />
+            Drink Sales
+          </h3>
+          <p className="text-2xl font-black text-emerald-600">₹{stats.totalDrinkRevenue.toLocaleString()}</p>
+        </div>
       </div>
 
       {/* Breakdown Section */}
@@ -232,7 +324,9 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-slate-900">₹{item.revenue.toLocaleString()}</p>
-                      <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Revenue</p>
+                      <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
+                        Profit: ₹{(item.revenue - item.cost).toLocaleString()}
+                      </p>
                     </div>
                   </div>
 
@@ -249,26 +343,6 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory }) => {
               ))}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Summary Footer */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
-          <h3 className="text-indigo-900 font-bold mb-2 flex items-center gap-2">
-            <ArrowUpRight className="w-4 h-4" />
-            Drink Revenue
-          </h3>
-          <p className="text-3xl font-black text-indigo-600">₹{stats.totalDrinkRevenue.toLocaleString()}</p>
-          <p className="text-xs text-indigo-400 mt-1 font-medium">From inventory sales only</p>
-        </div>
-        <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200">
-          <h3 className="text-slate-900 font-bold mb-2 flex items-center gap-2">
-            <ArrowUpRight className="w-4 h-4" />
-            Booking Revenue
-          </h3>
-          <p className="text-3xl font-black text-slate-900">₹{stats.totalBookingRevenue.toLocaleString()}</p>
-          <p className="text-xs text-slate-400 mt-1 font-medium">From court bookings & extra hours</p>
         </div>
       </div>
     </div>
@@ -307,3 +381,4 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
 };
 
 export default Dashboard;
+

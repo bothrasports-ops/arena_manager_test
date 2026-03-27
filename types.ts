@@ -6,10 +6,18 @@ export enum Platform {
   OFFLINE = 'Offline',
 }
 
+export enum BookingType {
+  COURT = 'Court',
+  MEMBERSHIP = 'Membership',
+  COACHING = 'Coaching',
+}
+
 export interface DrinkInventoryItem {
   id: string;
   name: string;
-  price: number;
+  price: number; // Selling Price
+  purchasePrice: number;
+  stockQuantity: number;
 }
 
 export interface SelectedDrink {
@@ -23,6 +31,9 @@ export interface Booking {
   customerName: string;
   phoneNumber: string;
   platform: Platform;
+  bookingType: BookingType;
+  membershipId?: string;
+  coachingFee?: number;
   bookingAmount: number;
   selectedDrinks: SelectedDrink[];
   extraHours: {
@@ -37,6 +48,20 @@ export interface Booking {
   bookingDate: string;
   totalHours: number;
   sport: Sport;
+}
+
+export interface PosSaleItem {
+  drinkId: string;
+  quantity: number;
+  priceAtTime: number;
+}
+
+export interface PosSale {
+  id: string;
+  venueId: string;
+  totalAmount: number;
+  items: PosSaleItem[];
+  createdAt: string;
 }
 
 export enum Sport {
@@ -60,4 +85,5 @@ export interface AppState {
   profile: VenueProfile | null;
   bookings: Booking[];
   inventory: DrinkInventoryItem[];
+  posSales: PosSale[];
 }
