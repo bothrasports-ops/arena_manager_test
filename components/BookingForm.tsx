@@ -19,7 +19,6 @@ import {
   IdCard,
   GraduationCap
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport, BookingType } from '../types';
 import { supabase } from '../lib/supabase';
 

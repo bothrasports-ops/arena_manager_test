@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   X
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { DrinkInventoryItem, Booking } from '../types';
 import { supabase } from '../lib/supabase';
 

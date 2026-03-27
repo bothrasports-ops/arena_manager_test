@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { Trophy, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Building2, CheckCircle2, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { Sport } from '../types';
 
