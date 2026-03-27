@@ -9,6 +9,7 @@ import {
   Loader2,
   X
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { DrinkInventoryItem, PosSale, PosSaleItem } from '../types';
 import { supabase } from '../lib/supabase';
 
