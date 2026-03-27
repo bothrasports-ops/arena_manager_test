@@ -32,6 +32,8 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, onDelete
   const [sportFilter, setSportFilter] = useState<string>('All');
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const filteredBookings = bookings.filter(b => {
     const matchesSearch = b.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           b.phoneNumber.includes(searchTerm);
@@ -194,18 +196,42 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, onDelete
                   </div>
                   <div className="flex items-center gap-2">
                     {onDelete && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm('Are you sure you want to delete this booking?')) {
-                            onDelete(booking.id);
-                          }
-                        }}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                        title="Delete Booking"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {deletingId === booking.id ? (
+                          <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeletingId(null);
+                              }}
+                              className="px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-all uppercase tracking-wider"
+                            >
+                              No
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(booking.id);
+                                setDeletingId(null);
+                              }}
+                              className="px-2 py-1 text-[10px] font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all uppercase tracking-wider shadow-sm"
+                            >
+                              Yes
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingId(booking.id);
+                            }}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                            title="Delete Booking"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
                     )}
                     <div className={`p-1.5 rounded-full transition-colors ${expandedBookingId === booking.id ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
                       {expandedBookingId === booking.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}

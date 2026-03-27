@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Trophy, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Building2, CheckCircle2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { Sport } from '../types';
 
@@ -57,7 +58,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
         if (authError) throw authError;
         if (!authData.user) throw new Error("Sign up failed.");
 
-        alert("Sign up successful! You can now sign in.");
+        toast.success("Sign up successful! You can now sign in.");
         setIsSignUp(false);
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({

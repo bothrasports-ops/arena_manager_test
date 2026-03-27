@@ -15,9 +15,12 @@ import {
   Loader2,
   AlertCircle,
   Trophy,
-  ChevronDown
+  ChevronDown,
+  IdCard,
+  GraduationCap
 } from 'lucide-react';
-import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport } from '../types';
+import { toast } from 'sonner';
+import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport, BookingType } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface BookingFormProps {
@@ -32,7 +35,10 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [platform, setPlatform] = useState<Platform>(Platform.PLAYO);
-  const [sport, setSport] = useState<Sport>(availableSports[0] || Sport.BADMINTON);
+  const [bookingType, setBookingType] = useState<BookingType>(BookingType.COURT);
+  const [membershipId, setMembershipId] = useState('');
+  const [coachingFee, setCoachingFee] = useState<number | ''>(0);
+  const [sport, setSport] = useState<Sport>(availableSports[0] || Sport.PICKLEBALL);
   const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
   const [bookingStartTime, setBookingStartTime] = useState('10:00');
   const [bookingEndTime, setBookingEndTime] = useState('11:00');
@@ -81,10 +87,11 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
   };
 
   const totalHours = useMemo(() => {
+    if (bookingType !== BookingType.COURT) return 0;
     const baseHours = calculateHours(bookingStartTime, bookingEndTime);
     const extra = extraHoursEnabled ? Number(extraHoursDuration) : 0;
     return Number((baseHours + extra).toFixed(2));
-  }, [bookingStartTime, bookingEndTime, extraHoursEnabled, extraHoursDuration]);
+  }, [bookingStartTime, bookingEndTime, extraHoursEnabled, extraHoursDuration, bookingType]);
 
   const totalAmount = useMemo(() => {
     const drinksTotal = selectedDrinks.reduce((acc, drink) => {
@@ -92,8 +99,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
       return acc + (drink.priceAtTime * qty);
     }, 0);
     const extraTotal = extraHoursEnabled ? (Number(extraHoursAmount) || 0) : 0;
-    return (Number(bookingAmount) || 0) + drinksTotal + extraTotal;
-  }, [bookingAmount, selectedDrinks, extraHoursEnabled, extraHoursAmount]);
+    const coachingTotal = bookingType === BookingType.COACHING ? (Number(coachingFee) || 0) : 0;
+    return (Number(bookingAmount) || 0) + drinksTotal + extraTotal + coachingTotal;
+  }, [bookingAmount, selectedDrinks, extraHoursEnabled, extraHoursAmount, coachingFee, bookingType]);
 
   const handleUpdateQty = (drinkId: string, val: string) => {
     setSelectedDrinks(prev => prev.map(sd => {
@@ -109,7 +117,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName || !phoneNumber) {
-      alert("Please fill in basic customer details.");
+      toast.error("Please fill in basic customer details.");
       return;
     }
 
@@ -123,10 +131,13 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
           customer_name: customerName,
           phone_number: phoneNumber,
           platform: platform,
+          booking_type: bookingType,
+          membership_id: bookingType === BookingType.MEMBERSHIP ? membershipId : null,
+          coaching_fee: bookingType === BookingType.COACHING ? Number(coachingFee) : null,
           sport: sport,
           booking_date: bookingDate,
-          booking_start_time: bookingStartTime,
-          booking_end_time: bookingEndTime,
+          booking_start_time: bookingType === BookingType.COURT ? bookingStartTime : null,
+          booking_end_time: bookingType === BookingType.COURT ? bookingEndTime : null,
           total_hours: totalHours,
           booking_amount: Number(bookingAmount) || 0,
           extra_hours_enabled: extraHoursEnabled,
@@ -156,12 +167,25 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
             .insert(drinksToInsert);
 
           if (drinksError) throw drinksError;
+
+          // Update Inventory Stock
+          for (const drink of drinksToInsert) {
+            const item = inventory.find(i => i.id === drink.drink_id);
+            if (item) {
+              await supabase
+                .from('inventory')
+                .update({ stock_quantity: (item.stockQuantity || 0) - drink.quantity })
+                .eq('id', drink.drink_id);
+            }
+          }
         }
       }
 
       // Success Reset
       setCustomerName('');
       setPhoneNumber('');
+      setMembershipId('');
+      setCoachingFee(0);
       setBookingDate(new Date().toISOString().split('T')[0]);
       setBookingAmount(0);
       setSelectedDrinks(inventory.map(item => ({
@@ -171,10 +195,10 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
       })));
       setExtraHoursEnabled(false);
       onSave(); // Refresh global data
-      alert("Booking saved successfully!");
+      toast.success("Entry saved successfully!");
     } catch (error) {
       console.error('Error saving booking:', error);
-      alert("Failed to save booking. Please check your Supabase connection.");
+      toast.error("Failed to save booking. Please check your Supabase connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -190,6 +214,27 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-8">
+        {/* Entry Type Selection */}
+        <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+          {Object.values(BookingType).map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setBookingType(type)}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold transition-all ${
+                bookingType === type
+                  ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100'
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+              }`}
+            >
+              {type === BookingType.COURT && <Trophy className="w-4 h-4" />}
+              {type === BookingType.MEMBERSHIP && <IdCard className="w-4 h-4" />}
+              {type === BookingType.COACHING && <GraduationCap className="w-4 h-4" />}
+              {type}
+            </button>
+          ))}
+        </div>
+
         {/* Customer Section */}
         <section className="space-y-4">
           <h3 className="text-slate-900 font-bold text-sm uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2">
@@ -232,13 +277,13 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
         <section className="space-y-4 bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
           <h3 className="text-slate-900 font-bold text-sm uppercase tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
             <Layers className="w-4 h-4 text-indigo-500" />
-            2. Booking Specification
+            2. {bookingType} Details
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase">Booking Date</label>
+                <label className="text-xs font-bold text-slate-500 uppercase">Date</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   <input
@@ -251,43 +296,77 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Start Time</label>
-                  <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <select
-                      value={bookingStartTime}
-                      onChange={(e) => setBookingStartTime(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
-                    >
-                      {timeSlots.map(slot => (
-                        <option key={`start-${slot.value}`} value={slot.value}>{slot.label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              {bookingType === BookingType.COURT && (
+                <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Start Time</label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <select
+                        value={bookingStartTime}
+                        onChange={(e) => setBookingStartTime(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                      >
+                        {timeSlots.map(slot => (
+                          <option key={`start-${slot.value}`} value={slot.value}>{slot.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase">End Time</label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <select
+                        value={bookingEndTime}
+                        onChange={(e) => setBookingEndTime(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                      >
+                        {timeSlots.map(slot => (
+                          <option key={`end-${slot.value}`} value={slot.value}>{slot.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">End Time</label>
+              )}
+
+              {bookingType === BookingType.MEMBERSHIP && (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Membership ID / Plan</label>
                   <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <select
-                      value={bookingEndTime}
-                      onChange={(e) => setBookingEndTime(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
-                    >
-                      {timeSlots.map(slot => (
-                        <option key={`end-${slot.value}`} value={slot.value}>{slot.label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={membershipId}
+                      onChange={(e) => setMembershipId(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
+                      placeholder="e.g. GOLD-2024-001"
+                    />
                   </div>
                 </div>
-              </div>
+              )}
+
+              {bookingType === BookingType.COACHING && (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Monthly Coaching Fee (₹)</label>
+                  <div className="relative">
+                    <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="number"
+                      value={coachingFee}
+                      onChange={(e) => setCoachingFee(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase">Select Sport</label>
+                <label className="text-xs font-bold text-slate-500 uppercase">Sport</label>
                 <div className="relative">
                   <Trophy className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   <select
@@ -308,23 +387,26 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase">Select Platform</label>
-                <div className="relative">
-                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <select
-                    value={platform}
-                    onChange={(e) => setPlatform(e.target.value as Platform)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
-                  >
-                    {Object.values(Platform).map(p => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
+              {bookingType === BookingType.COURT && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Platform</label>
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <select
+                      value={platform}
+                      onChange={(e) => setPlatform(e.target.value as Platform)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                    >
+                      {Object.values(Platform).map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
+              )}
+
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase">Platform Base Amount (₹)</label>
+                <label className="text-xs font-bold text-slate-500 uppercase">Base Amount (₹)</label>
                 <div className="relative">
                   <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
@@ -338,118 +420,149 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col justify-center">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                   <Clock className="w-4 h-4 text-orange-500" />
-                   <span className="text-xs font-bold text-slate-700 uppercase">Extra Hours</span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={extraHoursEnabled}
-                    onChange={(e) => setExtraHoursEnabled(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
-                </label>
-              </div>
-
-              {extraHoursEnabled ? (
-                <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative group">
-                      <select
-                        value={extraHoursDuration}
-                        onChange={(e) => setExtraHoursDuration(Number(e.target.value))}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500 appearance-none cursor-pointer pr-8"
-                      >
-                        {[0.5, 1, 1.5, 2, 2.5, 3].map(h => (
-                          <option key={h} value={h}>{h} {h === 1 ? 'Hour' : 'Hours'}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+            <div className="space-y-4">
+              {bookingType === BookingType.COURT && (
+                <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col justify-center">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                       <Clock className="w-4 h-4 text-orange-500" />
+                       <span className="text-xs font-bold text-slate-700 uppercase">Extra Hours</span>
                     </div>
-                    <div className="flex-1">
+                    <label className="relative inline-flex items-center cursor-pointer">
                       <input
-                        type="number"
-                        min="0"
-                        value={extraHoursAmount}
-                        onChange={(e) => setExtraHoursAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
-                        placeholder="₹ Amount"
+                        type="checkbox"
+                        checked={extraHoursEnabled}
+                        onChange={(e) => setExtraHoursEnabled(e.target.checked)}
+                        className="sr-only peer"
                       />
-                    </div>
+                      <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
+                    </label>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-2">
-                  <p className="text-xs text-slate-400 italic">No extra hours selected</p>
+
+                  {extraHoursEnabled ? (
+                    <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <div className="flex gap-2">
+                        <div className="flex-1 relative group">
+                          <select
+                            value={extraHoursDuration}
+                            onChange={(e) => setExtraHoursDuration(Number(e.target.value))}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500 appearance-none cursor-pointer pr-8"
+                          >
+                            {[0.5, 1, 1.5, 2, 2.5, 3].map(h => (
+                              <option key={h} value={h}>{h} {h === 1 ? 'Hour' : 'Hours'}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        </div>
+                        <div className="flex-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={extraHoursAmount}
+                            onChange={(e) => setExtraHoursAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
+                            placeholder="₹ Amount"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-2">
+                      <p className="text-xs text-slate-400 italic">No extra hours selected</p>
+                    </div>
+                  )}
                 </div>
               )}
+
+              <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50">
+                <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-3">Summary</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Base Amount</span>
+                    <span className="font-bold text-slate-700">₹{Number(bookingAmount) || 0}</span>
+                  </div>
+                  {bookingType === BookingType.COURT && extraHoursEnabled && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Extra Hours ({extraHoursDuration}h)</span>
+                      <span className="font-bold text-slate-700">₹{Number(extraHoursAmount) || 0}</span>
+                    </div>
+                  )}
+                  {bookingType === BookingType.COACHING && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Coaching Fee</span>
+                      <span className="font-bold text-slate-700">₹{Number(coachingFee) || 0}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
         {/* Inventory Section */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h3 className="text-slate-900 font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-              <Package className="w-4 h-4 text-indigo-500" />
-              3. Inventory & Drinks
-            </h3>
-          </div>
+        {bookingType === BookingType.COURT && (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-slate-900 font-bold text-sm uppercase tracking-wider flex items-center gap-2">
+                <Package className="w-4 h-4 text-indigo-500" />
+                3. Inventory & Drinks
+              </h3>
+            </div>
 
-          <div className="grid grid-cols-1 gap-3">
-            {inventory.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/30">
-                <AlertCircle className="w-8 h-8 text-slate-300 mb-2" />
-                <p className="text-slate-500 text-sm font-medium">Your Inventory is currently empty</p>
-                <p className="text-slate-400 text-xs mt-1">Visit the 'Settings' tab to add items before adding them to a booking.</p>
-              </div>
-            ) : (
-              inventory.map((item) => {
-                const selectedDrink = selectedDrinks.find(sd => sd.drinkId === item.id) || { quantity: 0, priceAtTime: item.price };
-                return (
-                  <div key={item.id} className="flex flex-wrap items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl animate-in zoom-in-95 duration-200 shadow-sm">
-                    <div className="flex-1 min-w-[180px]">
-                      <p className="font-bold text-slate-700">{item.name}</p>
-                      <p className="text-xs text-slate-400">Price: ₹{item.price}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-24">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Quantity</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={selectedDrink.quantity}
-                          onChange={(e) => handleUpdateQty(item.id, e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder="0"
-                        />
+            <div className="grid grid-cols-1 gap-3">
+              {inventory.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/30">
+                  <AlertCircle className="w-8 h-8 text-slate-300 mb-2" />
+                  <p className="text-slate-500 text-sm font-medium">Your Inventory is currently empty</p>
+                  <p className="text-slate-400 text-xs mt-1">Visit the 'Inventory' tab to add items.</p>
+                </div>
+              ) : (
+                inventory.map((item) => {
+                  const selectedDrink = selectedDrinks.find(sd => sd.drinkId === item.id) || { quantity: 0, priceAtTime: item.price };
+                  return (
+                    <div key={item.id} className="flex flex-wrap items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl animate-in zoom-in-95 duration-200 shadow-sm">
+                      <div className="flex-1 min-w-[180px]">
+                        <p className="font-bold text-slate-700">{item.name}</p>
+                        <p className="text-xs text-slate-400">Price: ₹{item.price} | Stock: {item.stockQuantity}</p>
                       </div>
-                      <div className="min-w-[80px] text-right">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">Subtotal</p>
-                        <p className="text-sm font-black text-slate-900">₹{(Number(selectedDrink.quantity) || 0) * item.price}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-24">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Quantity</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={item.stockQuantity}
+                            value={selectedDrink.quantity}
+                            onChange={(e) => handleUpdateQty(item.id, e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="0"
+                          />
+                        </div>
+                        <div className="min-w-[80px] text-right">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Subtotal</p>
+                          <p className="text-sm font-black text-slate-900">₹{(Number(selectedDrink.quantity) || 0) * item.price}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </section>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Footer & Totals */}
         <div className="pt-8 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Hours</p>
-               <div className="flex items-baseline gap-1">
-                 <span className="text-2xl font-black text-slate-900 tracking-tighter">{totalHours}</span>
-                 <span className="text-xs font-bold text-slate-500 uppercase">{totalHours === 1 ? 'Hr' : 'Hrs'}</span>
-               </div>
-            </div>
+            {bookingType === BookingType.COURT && (
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Hours</p>
+                 <div className="flex items-baseline gap-1">
+                   <span className="text-2xl font-black text-slate-900 tracking-tighter">{totalHours}</span>
+                   <span className="text-xs font-bold text-slate-500 uppercase">{totalHours === 1 ? 'Hr' : 'Hrs'}</span>
+                 </div>
+              </div>
+            )}
             <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Total Payable Amount</p>
                <div className="flex items-baseline gap-1">
@@ -472,7 +585,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
             ) : (
               <>
                 <CheckCircle2 className="w-6 h-6" />
-                Complete Booking
+                Complete {bookingType}
               </>
             )}
           </button>

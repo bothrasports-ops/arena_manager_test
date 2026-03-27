@@ -8,25 +8,30 @@ import {
   LogOut,
   Trophy,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  ShoppingBag
 } from 'lucide-react';
+import { Toaster, toast } from 'sonner';
 import BookingForm from './components/BookingForm';
 import BookingList from './components/BookingList';
 import Inventory from './components/Inventory';
 import Dashboard from './components/Dashboard';
 import LoginForm from './components/LoginForm';
-import { AppState, Booking, DrinkInventoryItem, Sport } from './types';
+import DrinkSales from './components/DrinkSales';
+import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType } from './types';
 import { supabase } from './lib/supabase';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard'>('new');
+  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks'>('new');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'checking'>('checking');
   const [appState, setAppState] = useState<AppState>({
     user: null,
     profile: null,
     bookings: [],
-    inventory: []
+    inventory: [],
+    posSales: []
   });
 
   // Handle Auth Session
@@ -43,7 +48,7 @@ const App: React.FC = () => {
       if (session?.user) {
         setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email } }));
       } else {
-        setAppState(prev => ({ ...prev, user: null, profile: null, bookings: [], inventory: [] }));
+        setAppState(prev => ({ ...prev, user: null, profile: null, bookings: [], inventory: [], posSales: [] }));
         setLoading(false);
       }
     });
@@ -57,7 +62,16 @@ const App: React.FC = () => {
 
     setLoading(true);
     setFetchError(null);
+    setSupabaseStatus('checking');
     try {
+      // Test connection with a simple query
+      const { error: pingError } = await supabase.from('inventory').select('id').limit(1);
+      if (pingError) {
+        setSupabaseStatus('error');
+        throw new Error(`Supabase connection failed: ${pingError.message}`);
+      }
+      setSupabaseStatus('connected');
+
       // Fetch Profile
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -75,6 +89,14 @@ const App: React.FC = () => {
         .order('name');
 
       if (invError) throw invError;
+
+      const mappedInventory: DrinkInventoryItem[] = (inventoryData || []).map(i => ({
+        id: i.id,
+        name: i.name,
+        price: i.price,
+        purchasePrice: i.purchase_price || 0,
+        stockQuantity: i.stock_quantity || 0
+      }));
 
       // Fetch Bookings with their related drinks
       const { data: bookingsData, error: bookError } = await supabase
@@ -97,6 +119,9 @@ const App: React.FC = () => {
         customerName: b.customer_name,
         phoneNumber: b.phone_number,
         platform: b.platform,
+        bookingType: b.booking_type as BookingType || BookingType.COURT,
+        membershipId: b.membership_id,
+        coachingFee: b.coaching_fee,
         bookingAmount: b.booking_amount,
         selectedDrinks: b.booking_drinks ? b.booking_drinks.map((d: any) => ({
           drinkId: d.drink_id,
@@ -117,11 +142,40 @@ const App: React.FC = () => {
         timestamp: new Date(b.created_at).getTime()
       }));
 
+      // Fetch POS Sales
+      const { data: posSalesData, error: posError } = await supabase
+        .from('pos_sales')
+        .select(`
+          *,
+          pos_sale_items (
+            drink_id,
+            quantity,
+            price_at_time
+          )
+        `)
+        .eq('venue_id', appState.user.id)
+        .order('created_at', { ascending: false });
+
+      if (posError) throw posError;
+
+      const mappedPosSales: PosSale[] = (posSalesData || []).map(s => ({
+        id: s.id,
+        venueId: s.venue_id,
+        totalAmount: s.total_amount,
+        createdAt: s.created_at,
+        items: s.pos_sale_items.map((i: any) => ({
+          drinkId: i.drink_id,
+          quantity: i.quantity,
+          priceAtTime: i.price_at_time
+        }))
+      }));
+
       setAppState(prev => ({
         ...prev,
         profile: profileData,
-        inventory: inventoryData || [],
-        bookings: mappedBookings
+        inventory: mappedInventory,
+        bookings: mappedBookings,
+        posSales: mappedPosSales
       }));
     } catch (error: any) {
       console.error('Error fetching data from Supabase:', error);
@@ -167,10 +221,10 @@ const App: React.FC = () => {
         bookings: prev.bookings.filter(b => b.id !== id)
       }));
 
-      alert('Booking deleted successfully');
+      toast.success('Booking deleted successfully');
     } catch (error: any) {
       console.error('Error deleting booking:', error);
-      alert(`Failed to delete booking: ${error.message}`);
+      toast.error(`Failed to delete booking: ${error.message}`);
     }
   };
 
@@ -188,7 +242,9 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Toaster position="top-right" richColors />
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="bg-indigo-600 p-1.5 rounded-lg">
@@ -197,7 +253,20 @@ const App: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">ArenaSync</h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+              supabaseStatus === 'connected' ? 'bg-emerald-50/50 text-emerald-600 border border-emerald-200' :
+              supabaseStatus === 'error' ? 'bg-rose-50/50 text-rose-600 border border-rose-200' :
+              'bg-amber-50/50 text-amber-600 border border-amber-200'
+            }`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${
+                supabaseStatus === 'connected' ? 'bg-emerald-500 animate-pulse' :
+                supabaseStatus === 'error' ? 'bg-rose-500' :
+                'bg-amber-500 animate-bounce'
+              }`} />
+              <span className="hidden xs:inline">{supabaseStatus}</span>
+            </div>
+
             <button
               onClick={refreshData}
               className={`p-2 text-slate-400 hover:text-indigo-600 transition-colors rounded-full hover:bg-indigo-50 ${loading ? 'animate-spin' : ''}`}
@@ -258,6 +327,12 @@ const App: React.FC = () => {
               icon={<Package className="w-5 h-5" />}
               label="Inventory"
             />
+            <NavButton
+              active={activeTab === 'drinks'}
+              onClick={() => setActiveTab('drinks')}
+              icon={<ShoppingBag className="w-5 h-5" />}
+              label="Drinks Sale"
+            />
           </nav>
 
           <div className="flex-1">
@@ -271,6 +346,7 @@ const App: React.FC = () => {
                   <Dashboard
                     bookings={appState.bookings}
                     inventory={appState.inventory}
+                    posSales={appState.posSales}
                   />
                 )}
                 {activeTab === 'new' && (
@@ -296,6 +372,14 @@ const App: React.FC = () => {
                     venueId={appState.user?.id}
                   />
                 )}
+                {activeTab === 'drinks' && (
+                  <DrinkSales
+                    inventory={appState.inventory}
+                    sales={appState.posSales}
+                    onSave={refreshData}
+                    venueId={appState.user?.id}
+                  />
+                )}
               </>
             )}
           </div>
@@ -306,7 +390,8 @@ const App: React.FC = () => {
         <MobileNavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard className="w-6 h-6" />} label="Dashboard" />
         <MobileNavButton active={activeTab === 'new'} onClick={() => setActiveTab('new')} icon={<PlusCircle className="w-6 h-6" />} label="New" />
         <MobileNavButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List className="w-6 h-6" />} label="Bookings" />
-        <MobileNavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package className="w-6 h-6" />} label="Inventory" />
+        <MobileNavButton active={activeTab === 'drinks'} onClick={() => setActiveTab('drinks')} icon={<ShoppingBag className="w-6 h-6" />} label="Drinks" />
+        <MobileNavButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package className="w-6 h-6" />} label="Stock" />
       </nav>
       <div className="lg:hidden h-16" />
     </div>
