@@ -25,10 +25,10 @@ import ActiveBookings from './components/ActiveBookings';
 import MembershipManager from './components/MembershipManager';
 import UserManagement from './components/UserManagement';
 import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, UserProfile } from './types';
-import { supabase } from './lib/supabase';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const App: React.FC = () => {
-  const isConfigMissing = !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const isConfigMissing = !isSupabaseConfigured;
   const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'users'>('active');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -384,8 +384,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <Toaster position="top-right" richColors />
         <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-
-          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="max-w-[1800px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="bg-indigo-600 p-1.5 rounded-lg">
                 <Trophy className="text-white w-5 h-5" />
@@ -440,7 +439,7 @@ const App: React.FC = () => {
             </div>
         )}
 
-        <main className="flex-1 max-w-[1600px] mx-auto w-full px-4 py-8">
+        <main className="flex-1 max-w-[1800px] mx-auto w-full px-4 py-8">
           <div className="flex flex-col lg:flex-row gap-8">
             <nav className="hidden lg:flex flex-col gap-1 w-64 shrink-0">
               {isAdmin && (
