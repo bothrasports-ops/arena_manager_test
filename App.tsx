@@ -49,7 +49,7 @@ const App: React.FC = () => {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
       if (session?.user) {
         setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email } }));
       } else {
@@ -57,7 +57,7 @@ const App: React.FC = () => {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (session?.user) {
         setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email } }));
       } else {
@@ -177,7 +177,7 @@ const App: React.FC = () => {
 
       if (invError) throw invError;
 
-      const mappedInventory: DrinkInventoryItem[] = (inventoryData || []).map(i => ({
+      const mappedInventory: DrinkInventoryItem[] = (inventoryData || []).map((i: any) => ({
         id: i.id,
         name: i.name,
         price: i.price,
@@ -194,7 +194,7 @@ const App: React.FC = () => {
 
       if (membersError) throw membersError;
 
-      const mappedMembers: Member[] = (membersData || []).map(m => ({
+      const mappedMembers: Member[] = (membersData || []).map((m: any) => ({
         ...m,
         hoursPerDay: m.hours_per_day,
         status: m.status as any,
@@ -218,7 +218,7 @@ const App: React.FC = () => {
 
       if (bookError) throw bookError;
 
-      const mappedBookings: Booking[] = (bookingsData || []).map(b => ({
+      const mappedBookings: Booking[] = (bookingsData || []).map((b: any) => ({
         id: b.id,
         customerName: b.customer_name,
         phoneNumber: b.phone_number,
@@ -262,7 +262,7 @@ const App: React.FC = () => {
 
       if (posError) throw posError;
 
-      const mappedPosSales: PosSale[] = (posSalesData || []).map(s => ({
+      const mappedPosSales: PosSale[] = (posSalesData || []).map((s: any) => ({
         id: s.id,
         venueId: s.venue_id,
         totalAmount: s.total_amount,

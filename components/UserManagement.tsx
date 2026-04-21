@@ -44,7 +44,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                 .eq('venue_id', targetVenueId);
             if (error) throw error;
 
-            const mapped: UserProfile[] = (data || []).map(row => ({
+            const mapped: UserProfile[] = (data || []).map((row: any) => ({
                 id: row.id,
                 admin_name: row.admin_name || '',
                 admin_email: row.email, // Mapping email to admin_email
