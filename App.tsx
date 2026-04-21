@@ -28,6 +28,7 @@ import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Use
 import { supabase } from './lib/supabase';
 
 const App: React.FC = () => {
+  const isConfigMissing = !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY;
   const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'users'>('active');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -43,6 +44,11 @@ const App: React.FC = () => {
 
   // Handle Auth Session
   useEffect(() => {
+    if (isConfigMissing) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email } }));
@@ -65,7 +71,7 @@ const App: React.FC = () => {
 
   // Fetch initial data from Supabase
   const fetchData = async () => {
-    if (!appState.user) return;
+    if (!appState.user || isConfigMissing) return;
 
     setLoading(true);
     setFetchError(null);
@@ -328,6 +334,39 @@ const App: React.FC = () => {
   };
 
   const isAdmin = appState.profile?.role === UserRole.ADMIN;
+
+  if (isConfigMissing) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+          <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200 p-8 text-center">
+            <div className="w-20 h-20 bg-amber-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="w-10 h-10 text-amber-600" />
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 mb-2">Configuration Required</h1>
+            <p className="text-slate-600 mb-8 text-sm leading-relaxed">
+              Please provide your Supabase credentials in the <strong>Settings</strong> menu (gear icon in the bottom left) to connect to your database.
+            </p>
+
+            <div className="space-y-4 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-8">
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Environment Variables</p>
+                <code className="text-xs font-mono text-slate-700 block select-all">VITE_SUPABASE_URL</code>
+                <code className="text-xs font-mono text-slate-700 block select-all">VITE_SUPABASE_ANON_KEY</code>
+              </div>
+              <div className="pt-2 border-t border-slate-200">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Your Project URL</p>
+                <code className="text-[10px] font-mono text-slate-500 break-all select-all">https://uxyhipfvupyrtuntavnw.supabase.co</code>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-100 text-[10px] text-slate-400 uppercase font-bold tracking-widest leading-normal">
+              ArenaSync &bull; Setup Mode<br />
+              (Key fallback removed for security)
+            </div>
+          </div>
+        </div>
+    );
+  }
 
   if (loading && !appState.user) {
     return (
