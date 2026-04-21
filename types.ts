@@ -18,6 +18,7 @@ export interface DrinkInventoryItem {
   price: number; // Selling Price
   purchasePrice: number;
   stockQuantity: number;
+  imageUrl?: string;
 }
 
 export interface SelectedDrink {
@@ -80,10 +81,50 @@ export interface VenueProfile {
   available_sports: Sport[];
 }
 
+export interface UserProfile extends VenueProfile {
+  role: UserRole;
+  venue_id?: string; // Explicit link to the venue owner
+  parentId?: string; // Legacy/Additional link if needed
+}
+
+export enum UserRole {
+  ADMIN = 'admin',
+  USER = 'user',
+}
+
+export enum MembershipPlan {
+  MONTHLY = 'Monthly',
+  QUARTERLY = 'Quarterly',
+}
+
+export interface MembershipSchedule {
+  monday: string;
+  tuesday: string;
+  wednesday: string;
+  thursday: string;
+  friday: string;
+  saturday: string;
+  sunday: string;
+}
+
+export interface Member {
+  id: string;
+  venueId: string;
+  customerName: string;
+  phoneNumber: string;
+  plan: MembershipPlan;
+  startDate: string;
+  endDate: string;
+  hoursPerDay: MembershipSchedule;
+  status: 'active' | 'renewal_required' | 'expired';
+  sport: Sport;
+}
+
 export interface AppState {
   user: { id: string; email?: string } | null;
-  profile: VenueProfile | null;
+  profile: UserProfile | null;
   bookings: Booking[];
   inventory: DrinkInventoryItem[];
   posSales: PosSale[];
+  members: Member[];
 }

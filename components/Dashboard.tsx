@@ -170,182 +170,182 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
   }, [bookings, inventory, posSales, timeRange, sportFilter]);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-      {/* Filters Selector */}
-      <div className="flex flex-col md:flex-row items-center gap-4">
-        <div className="flex-1 w-full flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
-              <Clock className="w-5 h-5 text-indigo-600" />
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+        {/* Filters Selector */}
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <div className="flex-1 w-full flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
+                <Clock className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Analytics Period</h3>
+                <p className="text-xs text-slate-500 font-medium">Viewing data for {stats.rangeLabel.toLowerCase()}</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Analytics Period</h3>
-              <p className="text-xs text-slate-500 font-medium">Viewing data for {stats.rangeLabel.toLowerCase()}</p>
-            </div>
-          </div>
 
-          <div className="relative group">
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value as TimeRange)}
-              className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
-          </div>
-        </div>
-
-        <div className="flex-1 w-full flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center border border-amber-100">
-              <Trophy className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Sport Filter</h3>
-              <p className="text-xs text-slate-500 font-medium">{sportFilter === 'All' ? 'All sports included' : `Showing ${sportFilter}`}</p>
+            <div className="relative group">
+              <select
+                  value={timeRange}
+                  onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+                  className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
             </div>
           </div>
 
-          <div className="relative group">
-            <select
-              value={sportFilter}
-              onChange={(e) => setSportFilter(e.target.value)}
-              className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
-            >
-              <option value="All">All Sports</option>
-              {Object.values(Sport).map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+          <div className="flex-1 w-full flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center border border-amber-100">
+                <Trophy className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Sport Filter</h3>
+                <p className="text-xs text-slate-500 font-medium">{sportFilter === 'All' ? 'All sports included' : `Showing ${sportFilter}`}</p>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <select
+                  value={sportFilter}
+                  onChange={(e) => setSportFilter(e.target.value)}
+                  className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
+              >
+                <option value="All">All Sports</option>
+                {Object.values(Sport).map(s => (
+                    <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title={`${stats.rangeLabel} Revenue`}
-          value={`₹${stats.totalRevenue.toLocaleString()}`}
-          subtitle={stats.rangeSubtitle}
-          icon={<TrendingUp className="w-6 h-6 text-emerald-600" />}
-          color="emerald"
-        />
-        <StatCard
-          title="Estimated Profit"
-          value={`₹${stats.totalProfit.toLocaleString()}`}
-          subtitle="Revenue - Cost"
-          icon={<Coins className="w-6 h-6 text-blue-600" />}
-          color="indigo"
-        />
-        <StatCard
-          title="Drinks Sold"
-          value={stats.totalDrinksSold.toString()}
-          subtitle={`Units ${stats.rangeLabel.toLowerCase()}`}
-          icon={<ShoppingBag className="w-6 h-6 text-indigo-600" />}
-          color="indigo"
-        />
-        <StatCard
-          title="Total Bookings"
-          value={stats.bookingCount.toString()}
-          subtitle="Completed sessions"
-          icon={<Calendar className="w-6 h-6 text-amber-600" />}
-          color="amber"
-        />
-      </div>
+        {/* Header Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <StatCard
+              title={`${stats.rangeLabel} Revenue`}
+              value={`₹${stats.totalRevenue.toLocaleString()}`}
+              subtitle={stats.rangeSubtitle}
+              icon={<TrendingUp className="w-6 h-6 text-emerald-600" />}
+              color="emerald"
+          />
+          <StatCard
+              title="Estimated Profit"
+              value={`₹${stats.totalProfit.toLocaleString()}`}
+              subtitle="Revenue - Cost"
+              icon={<Coins className="w-6 h-6 text-blue-600" />}
+              color="indigo"
+          />
+          <StatCard
+              title="Drinks Sold"
+              value={stats.totalDrinksSold.toString()}
+              subtitle={`Units ${stats.rangeLabel.toLowerCase()}`}
+              icon={<ShoppingBag className="w-6 h-6 text-indigo-600" />}
+              color="indigo"
+          />
+          <StatCard
+              title="Total Bookings"
+              value={stats.bookingCount.toString()}
+              subtitle="Completed sessions"
+              icon={<Calendar className="w-6 h-6 text-amber-600" />}
+              color="amber"
+          />
+        </div>
 
-      {/* Revenue Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200">
-          <h3 className="text-slate-900 font-bold mb-2 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-slate-500" />
-            Court Revenue
-          </h3>
-          <p className="text-2xl font-black text-slate-900">₹{stats.totalBookingRevenue.toLocaleString()}</p>
+        {/* Revenue Breakdown */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200">
+            <h3 className="text-slate-900 font-bold mb-2 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-slate-500" />
+              Court Revenue
+            </h3>
+            <p className="text-2xl font-black text-slate-900">₹{stats.totalBookingRevenue.toLocaleString()}</p>
+          </div>
+          <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
+            <h3 className="text-indigo-900 font-bold mb-2 flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-indigo-500" />
+              Membership
+            </h3>
+            <p className="text-2xl font-black text-indigo-600">₹{stats.totalMembershipRevenue.toLocaleString()}</p>
+          </div>
+          <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100">
+            <h3 className="text-amber-900 font-bold mb-2 flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-amber-500" />
+              Coaching
+            </h3>
+            <p className="text-2xl font-black text-amber-600">₹{stats.totalCoachingRevenue.toLocaleString()}</p>
+          </div>
+          <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100">
+            <h3 className="text-emerald-900 font-bold mb-2 flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-emerald-500" />
+              Drink Sales
+            </h3>
+            <p className="text-2xl font-black text-emerald-600">₹{stats.totalDrinkRevenue.toLocaleString()}</p>
+          </div>
         </div>
-        <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
-          <h3 className="text-indigo-900 font-bold mb-2 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-indigo-500" />
-            Membership
-          </h3>
-          <p className="text-2xl font-black text-indigo-600">₹{stats.totalMembershipRevenue.toLocaleString()}</p>
-        </div>
-        <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100">
-          <h3 className="text-amber-900 font-bold mb-2 flex items-center gap-2">
-            <GraduationCap className="w-4 h-4 text-amber-500" />
-            Coaching
-          </h3>
-          <p className="text-2xl font-black text-amber-600">₹{stats.totalCoachingRevenue.toLocaleString()}</p>
-        </div>
-        <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100">
-          <h3 className="text-emerald-900 font-bold mb-2 flex items-center gap-2">
-            <ShoppingBag className="w-4 h-4 text-emerald-500" />
-            Drink Sales
-          </h3>
-          <p className="text-2xl font-black text-emerald-600">₹{stats.totalDrinkRevenue.toLocaleString()}</p>
-        </div>
-      </div>
 
-      {/* Breakdown Section */}
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-        <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-white font-bold text-lg flex items-center gap-2">
-            <BarChart3 className="w-5 h-5" />
-            Drink Sales Breakdown
-          </h2>
-          <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">
+        {/* Breakdown Section */}
+        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
+            <h2 className="text-white font-bold text-lg flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              Drink Sales Breakdown
+            </h2>
+            <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">
             {stats.rangeLabel}
           </span>
-        </div>
+          </div>
 
-        <div className="p-6">
-          {stats.salesBreakdown.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 italic">
-              No sales data available for this period.
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {stats.salesBreakdown.map((item, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
-                        <Package className="w-5 h-5 text-slate-600" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900">{item.name}</p>
-                        <p className="text-xs text-slate-500">{item.quantity} units sold</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-slate-900">₹{item.revenue.toLocaleString()}</p>
-                      <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
-                        Profit: ₹{(item.revenue - item.cost).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-indigo-500 rounded-full transition-all duration-1000"
-                      style={{
-                        width: `${stats.totalDrinksSold > 0 ? (item.quantity / stats.totalDrinksSold) * 100 : 0}%`
-                      }}
-                    />
-                  </div>
+          <div className="p-6">
+            {stats.salesBreakdown.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 italic">
+                  No sales data available for this period.
                 </div>
-              ))}
-            </div>
-          )}
+            ) : (
+                <div className="space-y-6">
+                  {stats.salesBreakdown.map((item, index) => (
+                      <div key={index} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
+                              <Package className="w-5 h-5 text-slate-600" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900">{item.name}</p>
+                              <p className="text-xs text-slate-500">{item.quantity} units sold</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-slate-900">₹{item.revenue.toLocaleString()}</p>
+                            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
+                              Profit: ₹{(item.revenue - item.cost).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                              className="h-full bg-indigo-500 rounded-full transition-all duration-1000"
+                              style={{
+                                width: `${stats.totalDrinksSold > 0 ? (item.quantity / stats.totalDrinksSold) * 100 : 0}%`
+                              }}
+                          />
+                        </div>
+                      </div>
+                  ))}
+                </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
   );
 };
 
@@ -365,18 +365,18 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
   };
 
   return (
-    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 rounded-2xl border ${colorClasses[color]}`}>
-          {icon}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className={`p-3 rounded-2xl border ${colorClasses[color]}`}>
+            {icon}
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">{title}</p>
+          <p className="text-3xl font-black text-slate-900 mt-1">{value}</p>
+          <p className="text-xs text-slate-400 mt-1 font-medium">{subtitle}</p>
         </div>
       </div>
-      <div>
-        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">{title}</p>
-        <p className="text-3xl font-black text-slate-900 mt-1">{value}</p>
-        <p className="text-xs text-slate-400 mt-1 font-medium">{subtitle}</p>
-      </div>
-    </div>
   );
 };
 
