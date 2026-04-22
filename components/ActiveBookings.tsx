@@ -8,7 +8,9 @@ import {
     RefreshCw,
     AlertCircle,
     CheckCircle2,
-    CalendarClock
+    CalendarClock,
+    IndianRupee,
+    ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Booking, DrinkInventoryItem, Platform } from '../types';
@@ -23,6 +25,15 @@ interface ActiveBookingsProps {
 const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, onUpdate }) => {
     const [now, setNow] = useState(new Date());
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
+    const [extraHoursForm, setExtraHoursForm] = useState<{
+        bookingId: string | null;
+        duration: number;
+        amount: number | '';
+    }>({
+        bookingId: null,
+        duration: 0.5,
+        amount: 0
+    });
 
     // Update clock every minute
     useEffect(() => {
@@ -31,30 +42,63 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, on
     }, []);
 
     const activeBookings = useMemo(() => {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const localToday = `${yyyy}-${mm}-${dd}`;
-
         return bookings.filter(b => {
-            // Comparison in local date string
-            if (b.bookingDate !== localToday) return false;
+            // Create date objects for start and end times
+            const start = new Date(`${b.bookingDate}T${b.bookingStartTime}`);
+            const end = new Date(`${b.bookingDate}T${b.bookingEndTime}`);
 
-            const [startH, startM] = b.bookingStartTime.split(':').map(Number);
-            const [endH, endM] = b.bookingEndTime.split(':').map(Number);
+            // If end time is before start time, it crosses midnight
+            if (end < start) {
+                end.setDate(end.getDate() + 1);
+            }
 
-            const startTimeDate = new Date(now);
-            startTimeDate.setHours(startH, startM, 0, 0);
-
-            const endTimeDate = new Date(now);
-            endTimeDate.setHours(endH, endM, 0, 0);
-
-            // Handle bookings that end at midnight or next day if necessary
-            // For now assuming same day bookings
-            return now >= startTimeDate && now < endTimeDate;
+            // A booking is active if 'now' is between start and end
+            return now >= start && now < end;
         });
     }, [bookings, now]);
+
+    const handleUpdateExtraHours = async (booking: Booking) => {
+        if (!extraHoursForm.bookingId) return;
+
+        setIsUpdating(booking.id);
+        try {
+            const duration = Number(extraHoursForm.duration);
+            const amount = Number(extraHoursForm.amount) || 0;
+
+            // Calculate new end time
+            const [h, m] = booking.bookingEndTime.split(':').map(Number);
+            let totalMinutes = h * 60 + m + (duration * 60);
+            const newH = Math.floor(totalMinutes / 60) % 24;
+            const newM = totalMinutes % 60;
+            const newEndTime = `${newH.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}`;
+
+            const newTotalHours = (Number(booking.totalHours) || 0) + duration;
+            const newTotalAmount = (Number(booking.totalAmount) || 0) + amount;
+
+            const { error } = await supabase
+                .from('bookings')
+                .update({
+                    extra_hours_enabled: true,
+                    extra_hours_duration: (booking.extraHours?.duration || 0) + duration,
+                    extra_hours_amount: (booking.extraHours?.amount || 0) + amount,
+                    booking_end_time: newEndTime,
+                    total_hours: newTotalHours,
+                    total_amount: newTotalAmount
+                })
+                .eq('id', booking.id);
+
+            if (error) throw error;
+
+            toast.success(`Added ${duration} extra hours to ${booking.customerName}`);
+            setExtraHoursForm({ bookingId: null, duration: 0.5, amount: 0 });
+            onUpdate();
+        } catch (error: any) {
+            console.error(error);
+            toast.error(`Failed to add extra hours: ${error.message}`);
+        } finally {
+            setIsUpdating(null);
+        }
+    };
 
     const handleAddDrink = async (booking: Booking, drinkId: string) => {
         setIsUpdating(booking.id);
@@ -167,6 +211,56 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, on
                     </span>
                                         <span className="text-lg font-black text-indigo-600">₹{booking.totalAmount}</span>
                                     </div>
+                                </div>
+
+                                <div className="space-y-4 mb-6">
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Add Extra Hours</h4>
+                                        <button
+                                            onClick={() => setExtraHoursForm(prev => prev.bookingId === booking.id ? { ...prev, bookingId: null } : { bookingId: booking.id, duration: 0.5, amount: 0 })}
+                                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700"
+                                        >
+                                            {extraHoursForm.bookingId === booking.id ? 'Cancel' : 'Add More Time'}
+                                        </button>
+                                    </div>
+
+                                    {extraHoursForm.bookingId === booking.id && (
+                                        <div className="bg-white p-3 rounded-xl border border-indigo-100 space-y-3 animate-in slide-in-from-top-2">
+                                            <div className="flex gap-2">
+                                                <div className="flex-1 relative group">
+                                                    <select
+                                                        value={extraHoursForm.duration}
+                                                        onChange={(e) => setExtraHoursForm(prev => ({ ...prev, duration: Number(e.target.value) }))}
+                                                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer pr-8"
+                                                    >
+                                                        {[0.5, 1, 1.5, 2, 2.5, 3].map(h => (
+                                                            <option key={h} value={h}>{h} {h === 1 ? 'Hour' : 'Hours'}</option>
+                                                        ))}
+                                                    </select>
+                                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                                </div>
+                                                <div className="flex-1 relative">
+                                                    <IndianRupee className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={extraHoursForm.amount}
+                                                        onChange={(e) => setExtraHoursForm(prev => ({ ...prev, amount: e.target.value === '' ? '' : Number(e.target.value) }))}
+                                                        className="w-full pl-6 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                                        placeholder="₹ Amount"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleUpdateExtraHours(booking)}
+                                                disabled={isUpdating === booking.id}
+                                                className="w-full py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                {isUpdating === booking.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                                Confirm Extension
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="space-y-4">

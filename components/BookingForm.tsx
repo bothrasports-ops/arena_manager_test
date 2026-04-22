@@ -41,12 +41,20 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
   const [membershipId, setMembershipId] = useState('');
   const [coachingFee, setCoachingFee] = useState<number | ''>(0);
   const [sport, setSport] = useState<Sport>(availableSports[0] || Sport.PICKLEBALL);
-  const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Initialize with local date string YYYY-MM-DD
+  const getLocalDateString = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+  };
+
+  const [bookingDate, setBookingDate] = useState(getLocalDateString());
   const [bookingStartTime, setBookingStartTime] = useState('10:00');
   const [bookingEndTime, setBookingEndTime] = useState('11:00');
   const [bookingAmount, setBookingAmount] = useState<number | ''>(0);
   const [selectedDrinks, setSelectedDrinks] = useState<SelectedDrink[]>([]);
-  const [extraHoursEnabled, setExtraHoursEnabled] = useState(false);
 
   // Sync inventory with selectedDrinks
   React.useEffect(() => {
@@ -58,8 +66,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
       })));
     }
   }, [inventory, selectedDrinks.length]);
-  const [extraHoursDuration, setExtraHoursDuration] = useState<number>(0.5);
-  const [extraHoursAmount, setExtraHoursAmount] = useState<number | ''>(0);
 
   const timeSlots = useMemo(() => {
     const slots = [];
@@ -90,10 +96,8 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
 
   const totalHours = useMemo(() => {
     if (bookingType !== BookingType.COURT) return 0;
-    const baseHours = calculateHours(bookingStartTime, bookingEndTime);
-    const extra = extraHoursEnabled ? Number(extraHoursDuration) : 0;
-    return Number((baseHours + extra).toFixed(2));
-  }, [bookingStartTime, bookingEndTime, extraHoursEnabled, extraHoursDuration, bookingType]);
+    return Number(calculateHours(bookingStartTime, bookingEndTime).toFixed(2));
+  }, [bookingStartTime, bookingEndTime, bookingType]);
 
   const totalAmount = useMemo(() => {
     const drinksTotal = selectedDrinks.reduce((acc, drink) => {
@@ -101,10 +105,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
       const price = typeof drink.priceAtTime === 'number' ? drink.priceAtTime : 0;
       return acc + (price * qty);
     }, 0);
-    const extraTotal = extraHoursEnabled ? (Number(extraHoursAmount) || 0) : 0;
     const coachingTotal = bookingType === BookingType.COACHING ? (Number(coachingFee) || 0) : 0;
-    return (Number(bookingAmount) || 0) + drinksTotal + extraTotal + coachingTotal;
-  }, [bookingAmount, selectedDrinks, extraHoursEnabled, extraHoursAmount, coachingFee, bookingType]);
+    return (Number(bookingAmount) || 0) + drinksTotal + coachingTotal;
+  }, [bookingAmount, selectedDrinks, coachingFee, bookingType]);
 
   const handleUpdateQty = (drinkId: string, val: string) => {
     setSelectedDrinks(prev => prev.map(sd => {
@@ -143,9 +146,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
             booking_end_time: bookingType === BookingType.COURT ? bookingEndTime : null,
             total_hours: totalHours,
             booking_amount: Number(bookingAmount) || 0,
-            extra_hours_enabled: extraHoursEnabled,
-            extra_hours_duration: extraHoursDuration,
-            extra_hours_amount: Number(extraHoursAmount) || 0,
+            extra_hours_enabled: false,
+            extra_hours_duration: 0,
+            extra_hours_amount: 0,
             total_amount: totalAmount
           })
           .select()
@@ -202,14 +205,13 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
       setPhoneNumber('');
       setMembershipId('');
       setCoachingFee(0);
-      setBookingDate(new Date().toISOString().split('T')[0]);
+      setBookingDate(getLocalDateString());
       setBookingAmount(0);
       setSelectedDrinks(inventory.map(item => ({
         drinkId: item.id,
         quantity: 0,
         priceAtTime: item.price
       })));
-      setExtraHoursEnabled(false);
       onSave(); // Refresh global data
       toast.success("Entry saved successfully!");
     } catch (error: any) {
@@ -445,59 +447,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
               </div>
 
               <div className="space-y-4">
-                {bookingType === BookingType.COURT && (
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col justify-center">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-orange-500" />
-                          <span className="text-xs font-bold text-slate-700 uppercase">Extra Hours</span>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                              type="checkbox"
-                              checked={extraHoursEnabled}
-                              onChange={(e) => setExtraHoursEnabled(e.target.checked)}
-                              className="sr-only peer"
-                          />
-                          <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
-                        </label>
-                      </div>
-
-                      {extraHoursEnabled ? (
-                          <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                            <div className="flex gap-2">
-                              <div className="flex-1 relative group">
-                                <select
-                                    value={extraHoursDuration}
-                                    onChange={(e) => setExtraHoursDuration(Number(e.target.value))}
-                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500 appearance-none cursor-pointer pr-8"
-                                >
-                                  {[0.5, 1, 1.5, 2, 2.5, 3].map(h => (
-                                      <option key={h} value={h}>{h} {h === 1 ? 'Hour' : 'Hours'}</option>
-                                  ))}
-                                </select>
-                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
-                              </div>
-                              <div className="flex-1">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={extraHoursAmount}
-                                    onChange={(e) => setExtraHoursAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
-                                    placeholder="₹ Amount"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                      ) : (
-                          <div className="text-center py-2">
-                            <p className="text-xs text-slate-400 italic">No extra hours selected</p>
-                          </div>
-                      )}
-                    </div>
-                )}
-
                 <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50">
                   <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-3">Summary</h4>
                   <div className="space-y-2 text-sm">
@@ -505,12 +454,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                       <span className="text-slate-500">Base Amount</span>
                       <span className="font-bold text-slate-700">₹{Number(bookingAmount) || 0}</span>
                     </div>
-                    {bookingType === BookingType.COURT && extraHoursEnabled && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Extra Hours ({extraHoursDuration}h)</span>
-                          <span className="font-bold text-slate-700">₹{Number(extraHoursAmount) || 0}</span>
-                        </div>
-                    )}
                     {bookingType === BookingType.COACHING && (
                         <div className="flex justify-between">
                           <span className="text-slate-500">Coaching Fee</span>
@@ -557,17 +500,27 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                                   <p className="font-bold text-slate-700 truncate">{item.name}</p>
                                   <p className="text-[10px] text-slate-500 font-bold">₹{item.price} &bull; {item.stockQuantity} Left</p>
 
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max={item.stockQuantity}
-                                        value={selectedDrink.quantity}
-                                        onChange={(e) => handleUpdateQty(item.id, e.target.value)}
-                                        className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-center outline-none focus:ring-1 focus:ring-indigo-500"
-                                        placeholder="0"
-                                    />
-                                    <span className="text-[10px] font-black text-slate-900">₹{(Number(selectedDrink.quantity) || 0) * item.price}</span>
+                                  <div className="flex items-center gap-1 mt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdateQty(item.id, String(Math.max(0, (Number(selectedDrink.quantity) || 0) - 1)))}
+                                        className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 min-w-[3rem] text-center">
+                                      <span className="text-xs font-bold text-slate-900">{selectedDrink.quantity || 0}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdateQty(item.id, String(Math.min(item.stockQuantity, (Number(selectedDrink.quantity) || 0) + 1)))}
+                                        className="w-8 h-8 flex items-center justify-center bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                    </button>
+                                    <div className="ml-2">
+                                      <span className="text-[10px] font-black text-slate-900">₹{(Number(selectedDrink.quantity) || 0) * item.price}</span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
