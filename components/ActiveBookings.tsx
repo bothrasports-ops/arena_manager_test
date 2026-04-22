@@ -13,7 +13,7 @@ import {
     ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Booking, DrinkInventoryItem, Platform } from '../types';
+import { Booking, DrinkInventoryItem, Platform, BookingType } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface ActiveBookingsProps {
@@ -199,68 +199,123 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, on
                                 </div>
 
                                 <div className="bg-slate-50 rounded-2xl p-4 space-y-3 mb-6 border border-slate-100">
-                                    <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500 flex items-center gap-2 font-medium">
-                      <Clock className="w-4 h-4" /> Duration
-                    </span>
-                                        <span className="font-bold text-slate-900">{booking.bookingStartTime} - {booking.bookingEndTime}</span>
+                                    <div className="flex items-center justify-between text-xs border-b border-slate-200 pb-2 mb-2">
+                                        <span className="text-slate-500 font-bold uppercase tracking-wider">Bill Details</span>
+                                        <span className="font-bold text-slate-400"># {booking.id.slice(0, 8)}</span>
                                     </div>
-                                    <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500 flex items-center gap-2 font-medium">
-                      <ShoppingBag className="w-4 h-4" /> Current Bill
-                    </span>
-                                        <span className="text-lg font-black text-indigo-600">₹{booking.totalAmount}</span>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600 flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                          {booking.bookingType} Session ({booking.bookingStartTime} - {booking.bookingEndTime})
+                      </span>
+                                            <span className="font-bold text-slate-900">₹{booking.bookingAmount}</span>
+                                        </div>
+
+                                        {booking.bookingType === BookingType.COACHING && booking.coachingFee !== undefined && booking.coachingFee > 0 && (
+                                            <div className="flex items-center justify-between text-sm pl-5">
+                                                <span className="text-slate-500">Coaching Fee</span>
+                                                <span className="font-bold text-slate-900">₹{booking.coachingFee}</span>
+                                            </div>
+                                        )}
+
+                                        {booking.selectedDrinks.length > 0 && booking.selectedDrinks.some(d => Number(d.quantity) > 0) && (
+                                            <div className="space-y-1">
+                                                {booking.selectedDrinks.filter(d => Number(d.quantity) > 0).map(sd => {
+                                                    const item = inventory.find(i => i.id === sd.drinkId);
+                                                    return (
+                                                        <div key={sd.drinkId} className="flex items-center justify-between text-[11px] text-slate-500 pl-5">
+                                                            <span>{item?.name || 'Drink'} x {sd.quantity}</span>
+                                                            <span>₹{(Number(sd.priceAtTime) || 0) * (Number(sd.quantity) || 0)}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {booking.extraHours?.enabled && booking.extraHours.amount > 0 && (
+                                            <div className="flex items-center justify-between text-sm text-orange-600 font-medium">
+                        <span className="flex items-center gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Extra Time ({booking.extraHours.duration}h)
+                        </span>
+                                                <span className="font-bold">₹{booking.extraHours.amount}</span>
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-200 mt-2">
+                                            <span className="font-bold text-slate-900 uppercase text-xs tracking-wider">Total Bill</span>
+                                            <span className="text-xl font-black text-indigo-600">₹{booking.totalAmount}</span>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div className="space-y-4 mb-6">
                                     <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-                                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Add Extra Hours</h4>
-                                        <button
-                                            onClick={() => setExtraHoursForm(prev => prev.bookingId === booking.id ? { ...prev, bookingId: null } : { bookingId: booking.id, duration: 0.5, amount: 0 })}
-                                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700"
-                                        >
-                                            {extraHoursForm.bookingId === booking.id ? 'Cancel' : 'Add More Time'}
-                                        </button>
+                                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Add Extra Duration</h4>
+                                        {extraHoursForm.bookingId === booking.id && (
+                                            <button
+                                                onClick={() => setExtraHoursForm({ bookingId: null, duration: 0.5, amount: 0 })}
+                                                className="text-[10px] font-bold text-rose-500 hover:text-rose-600"
+                                            >
+                                                Cancel
+                                            </button>
+                                        )}
                                     </div>
 
-                                    {extraHoursForm.bookingId === booking.id && (
-                                        <div className="bg-white p-3 rounded-xl border border-indigo-100 space-y-3 animate-in slide-in-from-top-2">
-                                            <div className="flex gap-2">
-                                                <div className="flex-1 relative group">
-                                                    <select
-                                                        value={extraHoursForm.duration}
-                                                        onChange={(e) => setExtraHoursForm(prev => ({ ...prev, duration: Number(e.target.value) }))}
-                                                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer pr-8"
-                                                    >
-                                                        {[0.5, 1, 1.5, 2, 2.5, 3].map(h => (
-                                                            <option key={h} value={h}>{h} {h === 1 ? 'Hour' : 'Hours'}</option>
-                                                        ))}
-                                                    </select>
-                                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                                </div>
-                                                <div className="flex-1 relative">
-                                                    <IndianRupee className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        value={extraHoursForm.amount}
-                                                        onChange={(e) => setExtraHoursForm(prev => ({ ...prev, amount: e.target.value === '' ? '' : Number(e.target.value) }))}
-                                                        className="w-full pl-6 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
-                                                        placeholder="₹ Amount"
-                                                    />
-                                                </div>
-                                            </div>
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex gap-2">
                                             <button
-                                                onClick={() => handleUpdateExtraHours(booking)}
-                                                disabled={isUpdating === booking.id}
-                                                className="w-full py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                                                onClick={() => setExtraHoursForm({ bookingId: booking.id, duration: 0.5, amount: '' })}
+                                                className={`flex-1 py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all ${
+                                                    extraHoursForm.bookingId === booking.id && extraHoursForm.duration === 0.5
+                                                        ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm ring-1 ring-orange-100'
+                                                        : 'bg-white border-slate-200 text-slate-500 hover:border-orange-200 hover:bg-orange-50/30'
+                                                }`}
                                             >
-                                                {isUpdating === booking.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                                                Confirm Extension
+                                                <Clock className="w-3.5 h-3.5" /> +30 Mins
+                                            </button>
+                                            <button
+                                                onClick={() => setExtraHoursForm({ bookingId: booking.id, duration: 1, amount: '' })}
+                                                className={`flex-1 py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all ${
+                                                    extraHoursForm.bookingId === booking.id && extraHoursForm.duration === 1
+                                                        ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm ring-1 ring-orange-100'
+                                                        : 'bg-white border-slate-200 text-slate-500 hover:border-orange-200 hover:bg-orange-50/30'
+                                                }`}
+                                            >
+                                                <Clock className="w-3.5 h-3.5" /> +1 Hour
                                             </button>
                                         </div>
-                                    )}
+
+                                        {extraHoursForm.bookingId === booking.id && (
+                                            <div className="bg-white p-3 rounded-xl border border-orange-100 space-y-3 animate-in slide-in-from-top-2">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Enter Additional Amount (₹)</label>
+                                                    <div className="relative">
+                                                        <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-orange-400" />
+                                                        <input
+                                                            autoFocus
+                                                            type="number"
+                                                            min="0"
+                                                            value={extraHoursForm.amount}
+                                                            onChange={(e) => setExtraHoursForm(prev => ({ ...prev, amount: e.target.value === '' ? '' : Number(e.target.value) }))}
+                                                            className="w-full pl-8 pr-4 py-2 bg-orange-50/30 border border-orange-200 rounded-lg text-sm font-black outline-none focus:ring-2 focus:ring-orange-500 text-slate-700"
+                                                            placeholder="e.g. 250"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleUpdateExtraHours(booking)}
+                                                    disabled={isUpdating === booking.id || extraHoursForm.amount === ''}
+                                                    className="w-full py-2 bg-orange-500 text-white text-xs font-black rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                                                >
+                                                    {isUpdating === booking.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                                                    Apply Extra {extraHoursForm.duration === 0.5 ? '30m' : '1h'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="space-y-4">
