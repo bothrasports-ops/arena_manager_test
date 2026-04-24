@@ -13,8 +13,13 @@ import {
   Users,
   CalendarClock,
   ShieldCheck,
-  Grid
+  Grid,
+  Menu,
+  ChevronDown,
+  PieChart,
+  Globe
 } from 'lucide-react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Toaster, toast } from 'sonner';
 import BookingForm from './components/BookingForm';
 import BookingList from './components/BookingList';
@@ -27,12 +32,14 @@ import MembershipManager from './components/MembershipManager';
 import UserManagement from './components/UserManagement';
 import CourtsManager from './components/CourtsManager';
 import MembershipPlanManager from './components/MembershipPlanManager';
-import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, UserProfile, Court, MembershipPlanDefinition } from './types';
+import Finances from './components/Finances';
+import PlatformManager from './components/PlatformManager';
+import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, UserProfile, Court, MembershipPlanDefinition, BookingPlatform } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const App: React.FC = () => {
   const isConfigMissing = !isSupabaseConfigured;
-  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'users' | 'court_manager' | 'plans'>('active');
+  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'users' | 'court_manager' | 'plans' | 'finances' | 'platforms'>('active');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'checking'>('checking');
@@ -44,7 +51,8 @@ const App: React.FC = () => {
     posSales: [],
     members: [],
     courts: [],
-    membershipPlans: []
+    membershipPlans: [],
+    platforms: []
   });
 
   // Handle Auth Session
@@ -299,6 +307,15 @@ const App: React.FC = () => {
         }))
       }));
 
+      // Fetch Platforms
+      const { data: platformsData, error: platesError } = await supabase
+          .from('booking_platforms')
+          .select('*')
+          .eq('venue_id', targetVenueId)
+          .order('name');
+
+      if (platesError) console.error("Error fetching platforms:", platesError);
+
       setAppState(prev => ({
         ...prev,
         profile: profileData,
@@ -307,7 +324,8 @@ const App: React.FC = () => {
         posSales: mappedPosSales,
         members: mappedMembers,
         courts: courtsData || [],
-        membershipPlans: plansData || []
+        membershipPlans: plansData || [],
+        platforms: platformsData || []
       }));
     } catch (error: any) {
       console.error('Error fetching data from Supabase:', error);
@@ -420,19 +438,6 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
-              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                  supabaseStatus === 'connected' ? 'bg-emerald-50/50 text-emerald-600 border border-emerald-200' :
-                      supabaseStatus === 'error' ? 'bg-rose-50/50 text-rose-600 border border-rose-200' :
-                          'bg-amber-50/50 text-amber-600 border border-amber-200'
-              }`}>
-                <div className={`w-1.5 h-1.5 rounded-full ${
-                    supabaseStatus === 'connected' ? 'bg-emerald-500 animate-pulse' :
-                        supabaseStatus === 'error' ? 'bg-rose-500' :
-                            'bg-amber-500 animate-bounce'
-                }`} />
-                <span className="hidden xs:inline">{supabaseStatus}</span>
-              </div>
-
               <button
                   onClick={refreshData}
                   className={`p-2 text-slate-400 hover:text-indigo-600 transition-colors rounded-full hover:bg-indigo-50 ${loading ? 'animate-spin' : ''}`}
@@ -440,6 +445,96 @@ const App: React.FC = () => {
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
+
+              {/* Top Menu Dropdown for Secondary Tabs */}
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button className="flex items-center gap-1 p-2 text-slate-600 hover:text-indigo-600 transition-colors rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200">
+                    <Menu className="w-5 h-5" />
+                    <span className="hidden sm:inline text-sm font-bold">More</span>
+                    <ChevronDown className="w-4 h-4 opacity-50" />
+                  </button>
+                </DropdownMenu.Trigger>
+
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                      className="min-w-[200px] bg-white rounded-2xl p-2 shadow-2xl border border-slate-200 z-[100] animate-in fade-in zoom-in duration-200"
+                      sideOffset={8}
+                      align="end"
+                  >
+                    <DropdownItem
+                        onClick={() => setActiveTab('court_manager')}
+                        icon={<Grid className="w-4 h-4" />}
+                        label="Court Manager"
+                        active={activeTab === 'court_manager'}
+                    />
+                    {isAdmin && (
+                        <DropdownItem
+                            onClick={() => setActiveTab('platforms')}
+                            icon={<Globe className="w-4 h-4" />}
+                            label="Platforms"
+                            active={activeTab === 'platforms'}
+                        />
+                    )}
+                    {isAdmin && (
+                        <DropdownItem
+                            onClick={() => setActiveTab('finances')}
+                            icon={<PieChart className="w-4 h-4" />}
+                            label="Finances"
+                            active={activeTab === 'finances'}
+                        />
+                    )}
+                    {isAdmin && (
+                        <DropdownItem
+                            onClick={() => setActiveTab('dashboard')}
+                            icon={<LayoutDashboard className="w-4 h-4" />}
+                            label="Dashboard"
+                            active={activeTab === 'dashboard'}
+                        />
+                    )}
+                    {isAdmin && (
+                        <DropdownItem
+                            onClick={() => setActiveTab('members')}
+                            icon={<Users className="w-4 h-4" />}
+                            label="Memberships"
+                            active={activeTab === 'members'}
+                        />
+                    )}
+                    <DropdownItem
+                        onClick={() => setActiveTab('drinks')}
+                        icon={<ShoppingBag className="w-4 h-4" />}
+                        label="Drinks Sale"
+                        active={activeTab === 'drinks'}
+                    />
+                    {isAdmin && (
+                        <>
+                          <DropdownMenu.Separator className="h-px bg-slate-100 my-1" />
+                          <DropdownItem
+                              onClick={() => setActiveTab('inventory')}
+                              icon={<Package className="w-4 h-4" />}
+                              label="Inventory"
+                              active={activeTab === 'inventory'}
+                          />
+                          <DropdownItem
+                              onClick={() => setActiveTab('plans')}
+                              icon={<PlusCircle className="w-4 h-4" />}
+                              label="Membership Plans"
+                              active={activeTab === 'plans'}
+                          />
+                          <DropdownItem
+                              onClick={() => setActiveTab('users')}
+                              icon={<ShieldCheck className="w-4 h-4" />}
+                              label="Staff Management"
+                              active={activeTab === 'users'}
+                          />
+                        </>
+                    )}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+
+              <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block" />
+
               <span className="hidden sm:inline text-sm text-slate-500 font-medium">
               {appState.profile?.venue_name || 'Arena'}
             </span>
@@ -469,26 +564,32 @@ const App: React.FC = () => {
         <main className="flex-1 max-w-[1800px] mx-auto w-full px-4 py-8">
           <div className="flex flex-col lg:flex-row gap-8">
             <nav className="hidden lg:flex flex-col gap-1 w-64 shrink-0">
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'dashboard'}
-                      onClick={() => setActiveTab('dashboard')}
-                      icon={<LayoutDashboard className="w-5 h-5" />}
-                      label="Dashboard"
-                  />
-              )}
               <NavButton
                   active={activeTab === 'active'}
                   onClick={() => setActiveTab('active')}
                   icon={<CalendarClock className="w-5 h-5" />}
                   label="Active Bookings"
               />
+              <NavButton
+                  active={activeTab === 'court_manager'}
+                  onClick={() => setActiveTab('court_manager')}
+                  icon={<Grid className="w-5 h-5" />}
+                  label="Court Manager"
+              />
               {isAdmin && (
                   <NavButton
-                      active={activeTab === 'court_manager'}
-                      onClick={() => setActiveTab('court_manager')}
-                      icon={<Grid className="w-5 h-5" />}
-                      label="Court Manager"
+                      active={activeTab === 'platforms'}
+                      onClick={() => setActiveTab('platforms')}
+                      icon={<Globe className="w-5 h-5" />}
+                      label="Platforms"
+                  />
+              )}
+              {isAdmin && (
+                  <NavButton
+                      active={activeTab === 'finances'}
+                      onClick={() => setActiveTab('finances')}
+                      icon={<PieChart className="w-5 h-5" />}
+                      label="Finances"
                   />
               )}
               <NavButton
@@ -503,42 +604,6 @@ const App: React.FC = () => {
                   icon={<List className="w-5 h-5" />}
                   label="All Bookings"
               />
-              <NavButton
-                  active={activeTab === 'members'}
-                  onClick={() => setActiveTab('members')}
-                  icon={<Users className="w-5 h-5" />}
-                  label="Memberships"
-              />
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'inventory'}
-                      onClick={() => setActiveTab('inventory')}
-                      icon={<Package className="w-5 h-5" />}
-                      label="Inventory"
-                  />
-              )}
-              <NavButton
-                  active={activeTab === 'drinks'}
-                  onClick={() => setActiveTab('drinks')}
-                  icon={<ShoppingBag className="w-5 h-5" />}
-                  label="Drinks Sale"
-              />
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'users'}
-                      onClick={() => setActiveTab('users')}
-                      icon={<Users className="w-5 h-5" />}
-                      label="Staff"
-                  />
-              )}
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'plans'}
-                      onClick={() => setActiveTab('plans')}
-                      icon={<PlusCircle className="w-5 h-5" />}
-                      label="Plans"
-                  />
-              )}
             </nav>
 
             <div className="flex-1">
@@ -548,6 +613,20 @@ const App: React.FC = () => {
                   </div>
               ) : (
                   <>
+                    {activeTab === 'finances' && isAdmin && (
+                        <Finances
+                            bookings={appState.bookings}
+                            inventory={appState.inventory}
+                            posSales={appState.posSales}
+                        />
+                    )}
+                    {activeTab === 'platforms' && isAdmin && (
+                        <PlatformManager
+                            platforms={appState.platforms}
+                            venueId={appState.profile?.venue_id || appState.user?.id || ''}
+                            onRefresh={refreshData}
+                        />
+                    )}
                     {activeTab === 'dashboard' && isAdmin && (
                         <Dashboard
                             bookings={appState.bookings}
@@ -561,6 +640,8 @@ const App: React.FC = () => {
                             inventory={appState.inventory}
                             courts={appState.courts}
                             onUpdate={refreshData}
+                            venueName={appState.profile?.venue_name}
+                            venueEmail={appState.profile?.admin_email}
                         />
                     )}
                     {activeTab === 'court_manager' && (
@@ -579,7 +660,7 @@ const App: React.FC = () => {
                             venueId={appState.profile?.venue_id || appState.user?.id}
                         />
                     )}
-                    {activeTab === 'members' && (
+                    {activeTab === 'members' && isAdmin && (
                         <MembershipManager
                             members={appState.members}
                             plans={appState.membershipPlans}
@@ -594,6 +675,7 @@ const App: React.FC = () => {
                             inventory={appState.inventory}
                             courts={appState.courts}
                             membershipPlans={appState.membershipPlans}
+                            platforms={appState.platforms}
                             venueId={appState.user?.id}
                             availableSports={appState.profile?.available_sports || []}
                         />
@@ -606,9 +688,11 @@ const App: React.FC = () => {
                             onDelete={handleDeleteBooking}
                             isAdmin={isAdmin}
                             onUpdate={refreshData}
+                            venueName={appState.profile?.venue_name}
+                            venueEmail={appState.profile?.admin_email}
                         />
                     )}
-                    {activeTab === 'inventory' && (
+                    {activeTab === 'inventory' && isAdmin && (
                         <Inventory
                             inventory={appState.inventory}
                             bookings={appState.bookings}
@@ -638,13 +722,10 @@ const App: React.FC = () => {
         </main>
 
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around py-2 z-20">
-          {isAdmin && <MobileNavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard className="w-6 h-6" />} label="Dash" />}
           <MobileNavButton active={activeTab === 'active'} onClick={() => setActiveTab('active')} icon={<CalendarClock className="w-6 h-6" />} label="Active" />
+          <MobileNavButton active={activeTab === 'court_manager'} onClick={() => setActiveTab('court_manager')} icon={<Grid className="w-6 h-6" />} label="Courts" />
           <MobileNavButton active={activeTab === 'new'} onClick={() => setActiveTab('new')} icon={<PlusCircle className="w-6 h-6" />} label="New" />
-          <MobileNavButton active={activeTab === 'members'} onClick={() => setActiveTab('members')} icon={<Users className="w-6 h-6" />} label="Members" />
-          <MobileNavButton active={activeTab === 'drinks'} onClick={() => setActiveTab('drinks')} icon={<ShoppingBag className="w-6 h-6" />} label="Sale" />
-          {isAdmin && <MobileNavButton active={activeTab === 'court_manager'} onClick={() => setActiveTab('court_manager')} icon={<Grid className="w-6 h-6" />} label="Courts" />}
-          {isAdmin && <MobileNavButton active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<ShieldCheck className="w-6 h-6" />} label="Staff" />}
+          <MobileNavButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List className="w-6 h-6" />} label="All" />
         </nav>
         <div className="lg:hidden h-16" />
       </div>
@@ -661,6 +742,20 @@ const MobileNavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, labe
     <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-colors ${active ? 'text-indigo-600' : 'text-slate-400'}`}>
       {icon} <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
     </button>
+);
+
+const DropdownItem: React.FC<NavButtonProps> = ({ active, onClick, icon, label }) => (
+    <DropdownMenu.Item
+        onClick={onClick}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl outline-none cursor-pointer transition-colors ${
+            active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        }`}
+    >
+      <div className={active ? 'text-indigo-600' : 'text-slate-400'}>
+        {icon}
+      </div>
+      <span className="text-sm font-bold">{label}</span>
+    </DropdownMenu.Item>
 );
 
 export default App;

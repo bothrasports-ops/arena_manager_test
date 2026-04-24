@@ -93,12 +93,20 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                             >
                                 <span className="text-[8px]">{time}</span>
                                 {bookedBy && (
-                                    <div className="absolute inset-0 bg-indigo-600 text-white rounded-md opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center p-1 z-10 transition-opacity duration-200 cursor-help">
-                                        <span className="text-[6px] font-black uppercase tracking-tighter mb-0.5">Booked</span>
-                                        <span className="text-[7px] font-bold truncate w-full text-center leading-tight">
-                      {bookedBy.customerName}
-                    </span>
-                                    </div>
+                                    <>
+                                        <div className="absolute inset-0 bg-indigo-600/10 rounded-md z-0" />
+                                        <div className="absolute inset-x-0 bottom-0 top-0 flex flex-col items-center justify-center p-0.5 z-10">
+                      <span className="text-[6px] font-black uppercase text-indigo-700 truncate w-full text-center px-0.5 leading-none">
+                        {bookedBy.customerName.split(' ')[0]}
+                      </span>
+                                        </div>
+                                        <div className="absolute inset-0 bg-indigo-600 text-white rounded-md opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center p-1 z-20 transition-opacity duration-200 cursor-help">
+                                            <span className="text-[6px] font-black uppercase tracking-tighter mb-0.5">Booked By</span>
+                                            <span className="text-[7px] font-bold truncate w-full text-center leading-tight">
+                        {bookedBy.customerName}
+                      </span>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         );

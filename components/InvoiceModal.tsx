@@ -36,7 +36,11 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
     const balanceDue = Math.max(0, booking.totalAmount - (booking.advancePaid || 0));
 
     const handlePrint = () => {
-        window.print();
+        // Small timeout to ensure UI has settled and focus is clear
+        setTimeout(() => {
+            window.focus();
+            window.print();
+        }, 100);
     };
 
     return (
@@ -69,16 +73,28 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
                 <div className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible" id="invoice-content">
                     <style dangerouslySetInnerHTML={{ __html: `
             @media print {
+              @page { margin: 0; size: auto; }
+              body { 
+                margin: 0; 
+                background: white !important; 
+              }
               body * { visibility: hidden; }
-              #invoice-content, #invoice-content * { visibility: visible; }
+              #invoice-content, #invoice-content * { 
+                visibility: visible; 
+              }
               #invoice-content { 
-                position: absolute; 
+                position: fixed; 
                 left: 0; 
                 top: 0; 
-                width: 100%;
-                padding: 40px;
+                width: 100vw;
+                height: 100vh;
+                padding: 40px !important;
+                margin: 0 !important;
+                background: white !important;
+                z-index: 9999;
+                overflow: visible !important;
               }
-              .no-print { display: none !important; }
+              .print\\:hidden, .no-print { display: none !important; }
             }
           `}} />
 

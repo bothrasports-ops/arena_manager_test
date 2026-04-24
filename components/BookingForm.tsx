@@ -22,7 +22,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport, BookingType, Court, MembershipPlanDefinition } from '../types';
+import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport, BookingType, Court, MembershipPlanDefinition, BookingPlatform } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface BookingFormProps {
@@ -30,15 +30,16 @@ interface BookingFormProps {
   inventory: DrinkInventoryItem[];
   courts: Court[];
   membershipPlans: MembershipPlanDefinition[];
+  platforms: BookingPlatform[];
   venueId?: string;
   availableSports: Sport[];
 }
 
-const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, membershipPlans, venueId, availableSports }) => {
+const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, membershipPlans, platforms, venueId, availableSports }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [platform, setPlatform] = useState<Platform>(Platform.PLAYO);
+  const [platform, setPlatform] = useState<Platform>(platforms[0]?.name || 'Offline');
   const [bookingType, setBookingType] = useState<BookingType>(BookingType.COURT);
   const [membershipId, setMembershipId] = useState('');
   const [coachingFee, setCoachingFee] = useState<number | ''>(0);
@@ -202,9 +203,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="bg-indigo-600 px-6 py-4 flex items-center justify-between">
           <h2 className="text-white font-bold text-lg">Create New Entry</h2>
-          <div className="px-3 py-1 bg-white/20 rounded-lg text-white text-xs font-bold uppercase tracking-widest">
-            Cloud Sync Active
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-8">
@@ -442,22 +440,34 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-500 uppercase">Platform</label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {Object.values(Platform).map(p => (
+                        {/* Always show Offline by default */}
+                        <button
+                            type="button"
+                            onClick={() => setPlatform('Offline')}
+                            className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
+                                platform === 'Offline'
+                                    ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                                    : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                            }`}
+                        >
+                          <User className={`w-5 h-5 ${platform === 'Offline' ? 'text-indigo-600' : 'text-slate-300'}`} />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Offline</span>
+                        </button>
+
+                        {/* Show user-added platforms */}
+                        {platforms.map(p => (
                             <button
-                                key={p}
+                                key={p.id}
                                 type="button"
-                                onClick={() => setPlatform(p)}
+                                onClick={() => setPlatform(p.name)}
                                 className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
-                                    platform === p
+                                    platform === p.name
                                         ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
                                         : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                                 }`}
                             >
-                              {p === Platform.PLAYO && <Smartphone className="w-5 h-5" />}
-                              {p === Platform.HUDDLE && <Users className="w-5 h-5" />}
-                              {p === Platform.KHELOMORE && <Trophy className="w-5 h-5" />}
-                              {p === Platform.OFFLINE && <User className="w-5 h-5" />}
-                              <span className="text-[10px] font-bold uppercase">{p}</span>
+                              <Globe className={`w-5 h-5 ${platform === p.name ? 'text-indigo-600' : 'text-slate-300'}`} />
+                              <span className="text-[10px] font-bold uppercase tracking-wider">{p.name}</span>
                             </button>
                         ))}
                       </div>
@@ -468,7 +478,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
               <div className="space-y-6">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">
-                    {(bookingType === BookingType.MEMBERSHIP || bookingType === BookingType.COACHING) ? 'Membership Amount' : 'Booking Amount'} (₹)
+                    {bookingType === BookingType.MEMBERSHIP ? 'Membership Amount' : bookingType === BookingType.COACHING ? 'Coaching Amount' : 'Booking Amount'} (₹)
                   </label>
                   <div className="relative">
                     <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -523,7 +533,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                     <span className="text-slate-500">
-                      {(bookingType === BookingType.MEMBERSHIP || bookingType === BookingType.COACHING) ? 'Membership Amount' : 'Base Amount'}
+                      {bookingType === BookingType.MEMBERSHIP ? 'Membership Amount' : bookingType === BookingType.COACHING ? 'Coaching Amount' : 'Base Amount'}
                     </span>
                       <span className="font-bold text-slate-700">₹{Number(bookingAmount) || 0}</span>
                     </div>

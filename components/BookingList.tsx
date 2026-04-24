@@ -18,10 +18,14 @@ import {
   Trash2,
   Globe,
   Printer,
-  Edit2
+  Edit2,
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 import { Booking, Platform, DrinkInventoryItem, Sport, Court, BookingType, UserRole } from '../types';
 import InvoiceModal from './InvoiceModal';
+import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
 
 interface BookingListProps {
   bookings: Booking[];
@@ -30,9 +34,20 @@ interface BookingListProps {
   onDelete?: (id: string) => void;
   isAdmin?: boolean;
   onUpdate?: () => void;
+  venueName?: string;
+  venueEmail?: string;
 }
 
-const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, courts, onDelete, isAdmin, onUpdate }) => {
+const BookingList: React.FC<BookingListProps> = ({
+                                                   bookings,
+                                                   inventory,
+                                                   courts,
+                                                   onDelete,
+                                                   isAdmin,
+                                                   onUpdate,
+                                                   venueName,
+                                                   venueEmail
+                                                 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [platformFilter, setPlatformFilter] = useState<string>('All');
   const [sportFilter, setSportFilter] = useState<string>('All');
@@ -41,6 +56,26 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, courts, 
   const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
+
+  const handleMarkCompleted = async (booking: Booking) => {
+    setIsUpdating(booking.id);
+    try {
+      const { error } = await supabase
+          .from('bookings')
+          .update({ status: 'completed' })
+          .eq('id', booking.id);
+
+      if (error) throw error;
+      toast.success("Booking marked as completed");
+      setInvoiceBooking(booking); // Open invoice
+      if (onUpdate) onUpdate();
+    } catch (error: any) {
+      toast.error(`Failed to complete booking: ${error.message}`);
+    } finally {
+      setIsUpdating(null);
+    }
+  };
 
   const filteredBookings = bookings.filter(b => {
     const matchesSearch = b.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -71,13 +106,13 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, courts, 
 
   const getPlatformStyle = (platform: Platform) => {
     switch (platform) {
-      case Platform.PLAYO:
+      case 'PlayO':
         return 'bg-orange-100 text-orange-700 border-orange-200';
-      case Platform.HUDDLE:
+      case 'Huddle':
         return 'bg-blue-100 text-blue-700 border-blue-200';
-      case Platform.KHELOMORE:
+      case 'KheloMore':
         return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case Platform.OFFLINE:
+      case 'Offline':
         return 'bg-slate-100 text-slate-700 border-slate-200';
       default:
         return 'bg-indigo-100 text-indigo-700 border-indigo-200';
@@ -136,7 +171,7 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, courts, 
                 className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-xs"
             >
               <option value="All">All Platforms</option>
-              {Object.values(Platform).map(p => (
+              {Array.from(new Set(bookings.map(b => b.platform))).map(p => (
                   <option key={p} value={p}>{p}</option>
               ))}
             </select>
@@ -166,7 +201,11 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, courts, 
                     <div
                         key={booking.id}
                         className={`bg-white rounded-2xl border transition-all overflow-hidden ${
-                            expandedBookingId === booking.id ? 'border-indigo-400 shadow-lg ring-1 ring-indigo-100' : 'border-slate-200 shadow-sm hover:border-slate-300'
+                            expandedBookingId === booking.id
+                                ? 'border-indigo-400 shadow-lg ring-1 ring-indigo-100'
+                                : booking.status !== 'completed'
+                                    ? 'border-emerald-400 bg-emerald-50/10 shadow-sm hover:border-emerald-500'
+                                    : 'border-slate-200 shadow-sm hover:border-slate-300'
                         }`}
                     >
                       {/* Main Row */}
@@ -218,6 +257,20 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, courts, 
                             <p className="text-2xl font-black text-slate-900">₹{booking.totalAmount}</p>
                           </div>
                           <div className="flex items-center gap-2">
+                            {booking.status !== 'completed' && (
+                                <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMarkCompleted(booking);
+                                    }}
+                                    disabled={isUpdating === booking.id}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50"
+                                    title="Mark as Completed"
+                                >
+                                  {isUpdating === booking.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                  Complete
+                                </button>
+                            )}
                             <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -380,6 +433,8 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, courts, 
                 booking={invoiceBooking}
                 inventory={inventory}
                 courts={courts}
+                venueName={venueName}
+                venueEmail={venueEmail}
             />
         )}
       </div>

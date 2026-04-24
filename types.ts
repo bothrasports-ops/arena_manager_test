@@ -1,10 +1,11 @@
 
-export enum Platform {
-  PLAYO = 'PlayO',
-  HUDDLE = 'Huddle',
-  KHELOMORE = 'KheloMore',
-  OFFLINE = 'Offline',
+export interface BookingPlatform {
+  id: string;
+  name: string;
+  venueId: string;
 }
+
+export type Platform = string;
 
 export enum BookingType {
   COURT = 'Court',
@@ -150,4 +151,5 @@ export interface AppState {
   inventory: DrinkInventoryItem[];
   posSales: PosSale[];
   members: Member[];
+  platforms: BookingPlatform[];
 }
