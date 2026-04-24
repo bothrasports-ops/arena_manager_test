@@ -21,9 +21,10 @@ interface CourtsManagerProps {
     onUpdate: () => void;
     venueId?: string;
     isAdmin: boolean;
+    onBookSlot?: (courtId: string, time: string, date: string) => void;
 }
 
-const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdate, venueId, isAdmin }) => {
+const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdate, venueId, isAdmin, onBookSlot }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [newCourtName, setNewCourtName] = useState('');
     const [newCourtSport, setNewCourtSport] = useState<Sport>(Sport.PICKLEBALL);
@@ -79,19 +80,20 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                     </div>
                 </div>
 
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-1 min-h-[100px] max-h-[180px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 min-h-[120px] max-h-[220px] overflow-y-auto pr-1">
                     {slots.map((time, idx) => {
                         const bookedBy = isTimeBooked(court.id, time);
                         return (
                             <div
                                 key={idx}
-                                className={`group relative py-1.5 rounded-md border flex flex-col items-center justify-center transition-all ${
+                                onClick={() => !bookedBy && onBookSlot?.(court.id, time, selectedDate)}
+                                className={`group relative py-3 rounded-xl border flex flex-col items-center justify-center transition-all ${
                                     bookedBy
-                                        ? 'bg-indigo-50 border-indigo-100 text-indigo-700 font-bold'
-                                        : 'bg-emerald-50/20 border-emerald-100/30 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200'
+                                        ? 'bg-indigo-50 border-indigo-100 text-indigo-700 font-bold cursor-default'
+                                        : 'bg-emerald-50/20 border-emerald-100/30 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 cursor-pointer hover:scale-[1.02]'
                                 }`}
                             >
-                                <span className="text-[8px]">{time}</span>
+                                <span className="text-sm">{time}</span>
                                 {bookedBy && (
                                     <>
                                         <div className="absolute inset-0 bg-indigo-600/10 rounded-md z-0" />
@@ -238,7 +240,7 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                 </form>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-6">
                 {courts.length === 0 ? (
                     <div className="col-span-full py-20 bg-white rounded-3xl border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-center px-6">
                         <AlertCircle className="w-12 h-12 text-slate-200 mb-4" />
