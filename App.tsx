@@ -43,7 +43,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'checking'>('checking');
-  const [appState, setAppState] = useState<AppState & { courts: Court[], membershipPlans: MembershipPlanDefinition[] }>({
+  const [appState, setAppState] = useState<AppState>({
     user: null,
     profile: null,
     bookings: [],

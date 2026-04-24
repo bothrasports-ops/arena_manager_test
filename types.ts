@@ -152,4 +152,6 @@ export interface AppState {
   posSales: PosSale[];
   members: Member[];
   platforms: BookingPlatform[];
+  courts: Court[];
+  membershipPlans: MembershipPlanDefinition[];
 }
