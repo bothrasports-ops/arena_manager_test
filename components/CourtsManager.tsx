@@ -1,0 +1,280 @@
+
+import React, { useState } from 'react';
+import {
+    Grid,
+    Plus,
+    Trash2,
+    RefreshCw,
+    Trophy,
+    CheckCircle2,
+    XCircle,
+    AlertCircle,
+    Clock
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { Court, Sport, Booking } from '../types';
+import { supabase } from '../lib/supabase';
+
+interface CourtsManagerProps {
+    courts: Court[];
+    bookings: Booking[];
+    onUpdate: () => void;
+    venueId?: string;
+    isAdmin: boolean;
+}
+
+const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdate, venueId, isAdmin }) => {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [newCourtName, setNewCourtName] = useState('');
+    const [newCourtSport, setNewCourtSport] = useState<Sport>(Sport.PICKLEBALL);
+    const [startTime, setStartTime] = useState('06:00');
+    const [endTime, setEndTime] = useState('23:00');
+
+    const today = new Date().toISOString().split('T')[0];
+    const [selectedDate, setSelectedDate] = useState(today);
+
+    const getDayBookings = (courtId: string) => {
+        return bookings.filter(b =>
+            b.courtId === courtId &&
+            b.bookingDate === selectedDate &&
+            b.status !== 'completed' // only show active/upcoming bookings
+        );
+    };
+
+    const isTimeBooked = (courtId: string, time24: string) => {
+        const courtBookings = getDayBookings(courtId);
+        return courtBookings.find(b => {
+            const start = b.bookingStartTime;
+            const end = b.bookingEndTime;
+            return time24 >= start && time24 < end;
+        });
+    };
+
+    const renderTimeline = (court: Court) => {
+        const slots = [];
+        const [startH] = (court.start_time || '06:00').split(':').map(Number);
+        const [endH] = (court.end_time || '23:00').split(':').map(Number);
+
+        for (let h = startH; h < endH; h++) {
+            slots.push(`${h.toString().padStart(2, '0')}:00`);
+            slots.push(`${h.toString().padStart(2, '0')}:30`);
+        }
+
+        return (
+            <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedDate === today ? "Today's" : selectedDate} Slots</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Free</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Booked</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-1 min-h-[100px] max-h-[180px] overflow-y-auto pr-1">
+                    {slots.map((time, idx) => {
+                        const bookedBy = isTimeBooked(court.id, time);
+                        return (
+                            <div
+                                key={idx}
+                                className={`group relative py-1.5 rounded-md border flex flex-col items-center justify-center transition-all ${
+                                    bookedBy
+                                        ? 'bg-indigo-50 border-indigo-100 text-indigo-700 font-bold'
+                                        : 'bg-emerald-50/20 border-emerald-100/30 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200'
+                                }`}
+                            >
+                                <span className="text-[8px]">{time}</span>
+                                {bookedBy && (
+                                    <div className="absolute inset-0 bg-indigo-600 text-white rounded-md opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center p-1 z-10 transition-opacity duration-200 cursor-help">
+                                        <span className="text-[6px] font-black uppercase tracking-tighter mb-0.5">Booked</span>
+                                        <span className="text-[7px] font-bold truncate w-full text-center leading-tight">
+                      {bookedBy.customerName}
+                    </span>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    const handleAddCourt = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newCourtName) return;
+
+        setIsSubmitting(true);
+        try {
+            const { error } = await supabase
+                .from('courts')
+                .insert({
+                    name: newCourtName,
+                    sport: newCourtSport,
+                    venue_id: venueId,
+                    start_time: startTime,
+                    end_time: endTime
+                });
+
+            if (error) throw error;
+            toast.success("Court added successfully");
+            setNewCourtName('');
+            onUpdate();
+        } catch (error: any) {
+            toast.error(`Failed to add court: ${error.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteCourt = async (id: string) => {
+        if (!confirm("Are you sure you want to delete this court?")) return;
+
+        setIsSubmitting(true);
+        try {
+            const { error } = await supabase
+                .from('courts')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            toast.success("Court deleted");
+            onUpdate();
+        } catch (error: any) {
+            toast.error(`Failed to delete court: ${error.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                        <Grid className="w-6 h-6 text-indigo-600" />
+                        Court Management
+                    </h2>
+                    <p className="text-slate-500 text-sm">Define and manage your arena's playing areas</p>
+                </div>
+                <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-2 w-full sm:w-auto">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Check Date</label>
+                    <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="px-4 py-2 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-900 focus:ring-0 outline-none cursor-pointer"
+                    />
+                </div>
+            </div>
+
+            {isAdmin && (
+                <form onSubmit={handleAddCourt} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-end gap-4">
+                    <div className="flex-1 space-y-1.5 min-w-[200px]">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">Court Name / Number</label>
+                        <input
+                            required
+                            type="text"
+                            value={newCourtName}
+                            onChange={(e) => setNewCourtName(e.target.value)}
+                            placeholder="e.g. Court 1"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                        />
+                    </div>
+                    <div className="flex-1 space-y-1.5 min-w-[200px]">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">Sport</label>
+                        <select
+                            value={newCourtSport}
+                            onChange={(e) => setNewCourtSport(e.target.value as Sport)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold appearance-none"
+                        >
+                            {Object.values(Sport).map(s => (
+                                <option key={s} value={s}>{s}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex-1 space-y-1.5 min-w-[150px]">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">Start Hour</label>
+                        <input
+                            type="time"
+                            value={startTime}
+                            onChange={(e) => setStartTime(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                        />
+                    </div>
+                    <div className="flex-1 space-y-1.5 min-w-[150px]">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">End Hour</label>
+                        <input
+                            type="time"
+                            value={endTime}
+                            onChange={(e) => setEndTime(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="px-8 py-3.5 bg-indigo-600 text-white rounded-2xl font-black flex items-center gap-2 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                    >
+                        {isSubmitting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                        Add Court
+                    </button>
+                </form>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {courts.length === 0 ? (
+                    <div className="col-span-full py-20 bg-white rounded-3xl border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-center px-6">
+                        <AlertCircle className="w-12 h-12 text-slate-200 mb-4" />
+                        <h3 className="text-lg font-bold text-slate-900">No Courts Defined</h3>
+                        <p className="text-slate-500 text-sm mt-1">Start by adding your first court above.</p>
+                    </div>
+                ) : (
+                    courts.map((court) => (
+                        <div key={court.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                                    <Trophy className="w-6 h-6" />
+                                </div>
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => handleDeleteCourt(court.id)}
+                                        className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                            <h3 className="text-xl font-black text-slate-900">{court.name}</h3>
+                            <p className="text-indigo-500 font-bold text-sm mt-1">{court.sport}</p>
+
+                            <div className="mt-4 flex items-center gap-2 text-slate-500">
+                                <Clock className="w-4 h-4" />
+                                <span className="text-xs font-bold">{court.start_time || '00:00'} - {court.end_time || '00:00'}</span>
+                            </div>
+
+                            {renderTimeline(court)}
+
+                            <div className="mt-4 pt-4 border-t border-slate-50 flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${getDayBookings(court.id).length > 0 ? 'bg-indigo-500' : 'bg-emerald-500 animate-pulse'}`} />
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${getDayBookings(court.id).length > 0 ? 'text-indigo-600' : 'text-emerald-600'}`}>
+                  {getDayBookings(court.id).length > 0 ? `${getDayBookings(court.id).length} Bookings on ${selectedDate === today ? 'Today' : selectedDate}` : 'No Bookings'}
+                </span>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default CourtsManager;

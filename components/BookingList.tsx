@@ -16,21 +16,29 @@ import {
   Trophy,
   User as UserIcon,
   Trash2,
-  Globe
+  Globe,
+  Printer,
+  Edit2
 } from 'lucide-react';
-import { Booking, Platform, DrinkInventoryItem, Sport } from '../types';
+import { Booking, Platform, DrinkInventoryItem, Sport, Court, BookingType, UserRole } from '../types';
+import InvoiceModal from './InvoiceModal';
 
 interface BookingListProps {
   bookings: Booking[];
   inventory: DrinkInventoryItem[];
+  courts: Court[];
   onDelete?: (id: string) => void;
+  isAdmin?: boolean;
+  onUpdate?: () => void;
 }
 
-const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, onDelete }) => {
+const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, courts, onDelete, isAdmin, onUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [platformFilter, setPlatformFilter] = useState<string>('All');
   const [sportFilter, setSportFilter] = useState<string>('All');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'active' | 'completed'>('All');
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
+  const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -39,7 +47,8 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, onDelete
         b.phoneNumber.includes(searchTerm);
     const matchesPlatform = platformFilter === 'All' || b.platform === platformFilter;
     const matchesSport = sportFilter === 'All' || b.sport === sportFilter;
-    return matchesSearch && matchesPlatform && matchesSport;
+    const matchesStatus = statusFilter === 'All' || b.status === statusFilter;
+    return matchesSearch && matchesPlatform && matchesSport && matchesStatus;
   });
 
   const totalRevenue = filteredBookings.reduce((sum, b) => sum + b.totalAmount, 0);
@@ -100,7 +109,7 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, onDelete
         </div>
 
         {/* Filters Bar */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row gap-4 items-center shadow-sm">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col lg:flex-row gap-4 items-center shadow-sm">
           <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -111,25 +120,30 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, onDelete
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <Filter className="w-4 h-4 text-slate-400" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 w-full lg:w-auto">
+            <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-xs"
+            >
+              <option value="All">All Status</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+            </select>
             <select
                 value={platformFilter}
                 onChange={(e) => setPlatformFilter(e.target.value)}
-                className="w-full md:w-auto px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-xs"
             >
               <option value="All">All Platforms</option>
               {Object.values(Platform).map(p => (
                   <option key={p} value={p}>{p}</option>
               ))}
             </select>
-          </div>
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <Trophy className="w-4 h-4 text-slate-400" />
             <select
                 value={sportFilter}
                 onChange={(e) => setSportFilter(e.target.value)}
-                className="w-full md:w-auto px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
+                className="col-span-2 md:col-span-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-xs"
             >
               <option value="All">All Sports</option>
               {Object.values(Sport).map(s => (
@@ -146,178 +160,228 @@ const BookingList: React.FC<BookingListProps> = ({ bookings, inventory, onDelete
                 No matches found for your current search.
               </div>
           ) : (
-              filteredBookings.map((booking) => (
-                  <div
-                      key={booking.id}
-                      className={`bg-white rounded-2xl border transition-all overflow-hidden ${
-                          expandedBookingId === booking.id ? 'border-indigo-400 shadow-lg ring-1 ring-indigo-100' : 'border-slate-200 shadow-sm hover:border-slate-300'
-                      }`}
-                  >
-                    {/* Main Row */}
+              filteredBookings.map((booking) => {
+                const court = courts.find(c => c.id === booking.courtId);
+                return (
                     <div
-                        className="p-5 cursor-pointer flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
-                        onClick={() => toggleExpand(booking.id)}
+                        key={booking.id}
+                        className={`bg-white rounded-2xl border transition-all overflow-hidden ${
+                            expandedBookingId === booking.id ? 'border-indigo-400 shadow-lg ring-1 ring-indigo-100' : 'border-slate-200 shadow-sm hover:border-slate-300'
+                        }`}
                     >
-                      <div className="flex items-start gap-4 flex-1">
-                        <div className={`p-2.5 rounded-xl border shrink-0 ${getPlatformStyle(booking.platform)}`}>
-                          <Globe className="w-5 h-5" />
+                      {/* Main Row */}
+                      <div
+                          className="p-5 cursor-pointer flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                          onClick={() => toggleExpand(booking.id)}
+                      >
+                        <div className="flex items-start gap-4 flex-1">
+                          <div className={`p-2.5 rounded-xl border shrink-0 ${getPlatformStyle(booking.platform)}`}>
+                            <Globe className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-900 text-lg flex flex-wrap items-center gap-2">
+                              {booking.customerName}
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 uppercase tracking-tighter`}>
+                          {booking.sport}
+                        </span>
+                              {court && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 uppercase tracking-tighter">
+                            {court.name}
+                          </span>
+                              )}
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase tracking-tighter ${
+                                  booking.status === 'completed' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-emerald-100 text-emerald-600 border-emerald-200'
+                              }`}>
+                          {booking.status?.toUpperCase() || 'ACTIVE'}
+                        </span>
+                            </h3>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                                <UserIcon className="w-3.5 h-3.5" />
+                                {booking.phoneNumber}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                                <Calendar className="w-3.5 h-3.5" />
+                                {booking.bookingDate}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs text-indigo-600 font-bold">
+                                <Clock className="w-3.5 h-3.5" />
+                                {booking.bookingStartTime} - {booking.bookingEndTime} ({booking.totalHours} {booking.totalHours === 1 ? 'Hr' : 'Hrs'})
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                            {booking.customerName}
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase tracking-tighter ${getPlatformStyle(booking.platform)}`}>
-                        {booking.platform}
-                      </span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 uppercase tracking-tighter">
-                        {booking.sport}
-                      </span>
-                          </h3>
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
-                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                              <UserIcon className="w-3.5 h-3.5" />
-                              {booking.phoneNumber}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                              <Calendar className="w-3.5 h-3.5" />
-                              {booking.bookingDate}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-indigo-600 font-bold">
-                              <Clock className="w-3.5 h-3.5" />
-                              {booking.bookingStartTime} - {booking.bookingEndTime} ({booking.totalHours} {booking.totalHours === 1 ? 'Hr' : 'Hrs'})
+
+                        <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-4 md:pt-0">
+                          <div className="text-right">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Grand Total</p>
+                            <p className="text-2xl font-black text-slate-900">₹{booking.totalAmount}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setInvoiceBooking(booking);
+                                }}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
+                                title="Print Bill"
+                            >
+                              <Printer className="w-5 h-5" />
+                            </button>
+                            {onDelete && isAdmin && (
+                                <div className="flex items-center gap-1">
+                                  {deletingId === booking.id ? (
+                                      <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
+                                        <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setDeletingId(null);
+                                            }}
+                                            className="px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-all uppercase tracking-wider"
+                                        >
+                                          No
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onDelete(booking.id);
+                                              setDeletingId(null);
+                                            }}
+                                            className="px-2 py-1 text-[10px] font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all uppercase tracking-wider shadow-sm"
+                                        >
+                                          Yes
+                                        </button>
+                                      </div>
+                                  ) : (
+                                      <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeletingId(booking.id);
+                                          }}
+                                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                                          title="Delete Booking"
+                                      >
+                                        <Trash2 className="w-5 h-5" />
+                                      </button>
+                                  )}
+                                </div>
+                            )}
+                            <div className={`p-1.5 rounded-full transition-colors ${expandedBookingId === booking.id ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
+                              {expandedBookingId === booking.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-4 md:pt-0">
-                        <div className="text-right">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Grand Total</p>
-                          <p className="text-2xl font-black text-slate-900">₹{booking.totalAmount}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {onDelete && (
-                              <div className="flex items-center gap-1">
-                                {deletingId === booking.id ? (
-                                    <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
-                                      <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setDeletingId(null);
-                                          }}
-                                          className="px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-all uppercase tracking-wider"
-                                      >
-                                        No
-                                      </button>
-                                      <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onDelete(booking.id);
-                                            setDeletingId(null);
-                                          }}
-                                          className="px-2 py-1 text-[10px] font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all uppercase tracking-wider shadow-sm"
-                                      >
-                                        Yes
-                                      </button>
+                      {/* Expandable Breakdown */}
+                      {expandedBookingId === booking.id && (
+                          <div className="bg-slate-50 border-t border-slate-200 p-6 animate-in slide-in-from-top-2 duration-300">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              Booking Detailed Breakdown
+                            </h4>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                              {/* Booking Cost */}
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-2 text-slate-600 mb-2">
+                                  <Globe className="w-4 h-4" />
+                                  <span className="text-xs font-bold uppercase tracking-wider">
+                            {booking.bookingType === BookingType.MEMBERSHIP ? 'Membership' : booking.bookingType === BookingType.COACHING ? 'Coaching' : 'Session'} Rate
+                          </span>
+                                </div>
+                                <div className="flex justify-between items-baseline">
+                          <span className="text-[10px] text-slate-500">
+                            {booking.bookingType === BookingType.MEMBERSHIP ? 'Membership Amount' : booking.bookingType === BookingType.COACHING ? 'Coaching Fee' : 'Base Amount'}
+                          </span>
+                                  <span className="text-lg font-black text-slate-900">₹{booking.bookingAmount}</span>
+                                </div>
+                                {booking.coachingFee !== undefined && booking.coachingFee > 0 && (
+                                    <div className="flex justify-between items-baseline mt-1">
+                                      <span className="text-[10px] text-slate-500">Coaching Fee</span>
+                                      <span className="text-sm font-bold text-slate-700">₹{booking.coachingFee}</span>
                                     </div>
-                                ) : (
-                                    <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setDeletingId(booking.id);
-                                        }}
-                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                                        title="Delete Booking"
-                                    >
-                                      <Trash2 className="w-5 h-5" />
-                                    </button>
                                 )}
                               </div>
-                          )}
-                          <div className={`p-1.5 rounded-full transition-colors ${expandedBookingId === booking.id ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
-                            {expandedBookingId === booking.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+
+                              {/* Extra Hours Cost */}
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-2 text-orange-600 mb-2">
+                                  <Clock className="w-4 h-4" />
+                                  <span className="text-xs font-bold uppercase tracking-wider">Extra Duration</span>
+                                </div>
+                                {booking.extraHours.enabled ? (
+                                    <>
+                                      <div className="flex justify-between items-baseline mb-1">
+                                        <span className="text-[10px] text-slate-500">Duration</span>
+                                        <span className="text-sm font-bold text-slate-700">{booking.extraHours.duration} hrs</span>
+                                      </div>
+                                      <div className="flex justify-between items-baseline">
+                                        <span className="text-[10px] text-slate-500">Extra Cost</span>
+                                        <span className="text-lg font-black text-slate-900">₹{booking.extraHours.amount}</span>
+                                      </div>
+                                    </>
+                                ) : (
+                                    <p className="text-[10px] text-slate-400 italic mt-2">No extra hours added</p>
+                                )}
+                              </div>
+
+                              {/* Drinks Breakdown */}
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                                  <Package className="w-4 h-4" />
+                                  <span className="text-xs font-bold uppercase tracking-wider">Add-ons / Drinks</span>
+                                </div>
+                                {booking.selectedDrinks.length > 0 ? (
+                                    <div className="space-y-1">
+                                      {booking.selectedDrinks.filter(sd => Number(sd.quantity) > 0).map((sd, idx) => {
+                                        const drink = inventory.find(i => i.id === sd.drinkId);
+                                        return (
+                                            <div key={idx} className="flex justify-between text-[10px] border-b border-slate-50 pb-0.5 last:border-0">
+                                              <span className="text-slate-600 truncate mr-2">{drink?.name || 'Item'} x {sd.quantity}</span>
+                                              <span className="font-bold text-slate-900 shrink-0">₹{(Number(sd.quantity) || 0) * Number(sd.priceAtTime)}</span>
+                                            </div>
+                                        );
+                                      })}
+                                    </div>
+                                ) : (
+                                    <p className="text-[10px] text-slate-400 italic mt-2">No items selected</p>
+                                )}
+                              </div>
+
+                              {/* Payment Status */}
+                              <div className="bg-indigo-600 p-4 rounded-xl border border-indigo-700 shadow-lg text-white">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <CreditCard className="w-4 h-4 opacity-80" />
+                                  <span className="text-xs font-bold uppercase tracking-widest">{booking.paymentStatus?.replace(/_/g, ' ') || 'Payment'}</span>
+                                </div>
+                                <div className="flex justify-between items-baseline pt-1">
+                                  <span className="text-[10px] opacity-70">Paid</span>
+                                  <span className="text-lg font-black">₹{booking.advancePaid || 0}</span>
+                                </div>
+                                <div className="flex justify-between items-baseline border-t border-white/20 mt-1 pt-1">
+                                  <span className="text-[10px] opacity-70">Balance Due</span>
+                                  <span className="text-lg font-black text-white">₹{Math.max(0, booking.totalAmount - (booking.advancePaid || 0))}</span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
+                      )}
                     </div>
-
-                    {/* Expandable Breakdown */}
-                    {expandedBookingId === booking.id && (
-                        <div className="bg-slate-50 border-t border-slate-200 p-6 animate-in slide-in-from-top-2 duration-300">
-                          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            Booking Detailed Breakdown
-                          </h4>
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {/* Platform Booking Cost */}
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                              <div className="flex items-center gap-2 text-slate-600 mb-3">
-                                <Globe className="w-4 h-4" />
-                                <span className="text-sm font-bold">Platform Booking</span>
-                              </div>
-                              <div className="flex justify-between items-baseline">
-                                <span className="text-xs text-slate-500">Base Amount</span>
-                                <span className="text-lg font-black text-slate-900">₹{booking.bookingAmount}</span>
-                              </div>
-                            </div>
-
-                            {/* Extra Hours Cost */}
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                              <div className="flex items-center gap-2 text-orange-600 mb-3">
-                                <Clock className="w-4 h-4" />
-                                <span className="text-sm font-bold">Extra Hours</span>
-                              </div>
-                              {booking.extraHours.enabled ? (
-                                  <>
-                                    <div className="flex justify-between items-baseline mb-1">
-                                      <span className="text-xs text-slate-500">Duration</span>
-                                      <span className="text-sm font-bold text-slate-700">{booking.extraHours.duration} hrs</span>
-                                    </div>
-                                    <div className="flex justify-between items-baseline">
-                                      <span className="text-xs text-slate-500">Extra Cost</span>
-                                      <span className="text-lg font-black text-slate-900">₹{booking.extraHours.amount}</span>
-                                    </div>
-                                  </>
-                              ) : (
-                                  <p className="text-xs text-slate-400 italic mt-2">No extra hours added</p>
-                              )}
-                            </div>
-
-                            {/* Drinks Breakdown */}
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
-                              <div className="flex items-center gap-2 text-indigo-600 mb-3">
-                                <Package className="w-4 h-4" />
-                                <span className="text-sm font-bold">Drinks & Refreshements</span>
-                              </div>
-                              {booking.selectedDrinks.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {booking.selectedDrinks.map((sd, idx) => {
-                                      const drink = inventory.find(i => i.id === sd.drinkId);
-                                      return (
-                                          <div key={idx} className="flex justify-between text-xs border-b border-slate-50 pb-1 last:border-0">
-                                            <span className="text-slate-600">{drink?.name || 'Unknown Item'} x {sd.quantity}</span>
-                                            <span className="font-bold text-slate-900">₹{(Number(sd.quantity) || 0) * Number(sd.priceAtTime)}</span>
-                                          </div>
-                                      );
-                                    })}
-                                    <div className="flex justify-between pt-2 border-t border-slate-100">
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase">Drinks Total</span>
-                                      <span className="text-sm font-black text-indigo-600">
-                              ₹{booking.selectedDrinks.reduce((acc, d) => acc + (Number(d.priceAtTime) * (Number(d.quantity) || 0)), 0)}
-                            </span>
-                                    </div>
-                                  </div>
-                              ) : (
-                                  <p className="text-xs text-slate-400 italic mt-2">No drinks selected</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                    )}
-                  </div>
-              ))
+                );
+              })
           )}
         </div>
+
+        {invoiceBooking && (
+            <InvoiceModal
+                isOpen={!!invoiceBooking}
+                onClose={() => setInvoiceBooking(null)}
+                booking={invoiceBooking}
+                inventory={inventory}
+                courts={courts}
+            />
+        )}
       </div>
   );
 };

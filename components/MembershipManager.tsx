@@ -17,17 +17,18 @@ import {
     Filter
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Member, MembershipPlan, MembershipSchedule, Sport } from '../types';
+import { Member, MembershipPlan, MembershipSchedule, Sport, MembershipPlanDefinition } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface MembershipManagerProps {
     members: Member[];
+    plans: MembershipPlanDefinition[];
     onUpdate: () => void;
     venueId?: string;
     availableSports: Sport[];
 }
 
-const MembershipManager: React.FC<MembershipManagerProps> = ({ members, onUpdate, venueId, availableSports }) => {
+const MembershipManager: React.FC<MembershipManagerProps> = ({ members, plans, onUpdate, venueId, availableSports }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'all' | 'active' | 'expiring' | 'expired'>('all');

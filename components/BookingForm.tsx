@@ -22,17 +22,19 @@ import {
   Smartphone
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport, BookingType } from '../types';
+import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport, BookingType, Court, MembershipPlanDefinition } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface BookingFormProps {
   onSave: () => void;
   inventory: DrinkInventoryItem[];
+  courts: Court[];
+  membershipPlans: MembershipPlanDefinition[];
   venueId?: string;
   availableSports: Sport[];
 }
 
-const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, availableSports }) => {
+const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, membershipPlans, venueId, availableSports }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -41,6 +43,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
   const [membershipId, setMembershipId] = useState('');
   const [coachingFee, setCoachingFee] = useState<number | ''>(0);
   const [sport, setSport] = useState<Sport>(availableSports[0] || Sport.PICKLEBALL);
+  const [courtId, setCourtId] = useState<string>(courts[0]?.id || '');
+  const [paymentStatus, setPaymentStatus] = useState<'prepaid' | 'to_be_paid' | 'partially_paid'>('to_be_paid');
+  const [advancePaid, setAdvancePaid] = useState<number | ''>(0);
 
   // Initialize with local date string YYYY-MM-DD
   const getLocalDateString = () => {
@@ -54,36 +59,60 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
   const [bookingStartTime, setBookingStartTime] = useState('10:00');
   const [bookingEndTime, setBookingEndTime] = useState('11:00');
   const [bookingAmount, setBookingAmount] = useState<number | ''>(0);
-  const [selectedDrinks, setSelectedDrinks] = useState<SelectedDrink[]>([]);
 
-  // Sync inventory with selectedDrinks
-  React.useEffect(() => {
-    if (inventory.length > 0 && selectedDrinks.length === 0) {
-      setSelectedDrinks(inventory.map(item => ({
-        drinkId: item.id,
-        quantity: 0,
-        priceAtTime: item.price
-      })));
-    }
-  }, [inventory, selectedDrinks.length]);
+  const selectedCourt = useMemo(() => courts.find(c => c.id === courtId), [courts, courtId]);
+
+  const filteredPlans = useMemo(() => {
+    return membershipPlans.filter(p => p.sport === sport);
+  }, [membershipPlans, sport]);
 
   const timeSlots = useMemo(() => {
     const slots = [];
-    for (let h = 0; h < 24; h++) {
-      for (let m = 0; m < 60; m += 30) {
-        const hour24 = h.toString().padStart(2, '0');
-        const minute = m.toString().padStart(2, '0');
-        const time24 = `${hour24}:${minute}`;
+    let startMin = 0;
+    let endMin = 1440; // 24 * 60
 
-        const period = h >= 12 ? 'PM' : 'AM';
-        const hour12 = h % 12 === 0 ? 12 : h % 12;
-        const display = `${hour12}:${minute} ${period}`;
+    if (selectedCourt?.start_time && selectedCourt?.end_time) {
+      const [sh, sm] = selectedCourt.start_time.split(':').map(Number);
+      const [eh, em] = selectedCourt.end_time.split(':').map(Number);
+      startMin = sh * 60 + sm;
+      endMin = eh * 60 + em;
 
-        slots.push({ value: time24, label: display });
+      // If end time is same as start time, assume 24h
+      if (startMin === endMin) {
+        endMin = startMin + 1440;
+      } else if (endMin < startMin) {
+        endMin += 1440; // Handle overnight
       }
     }
+
+    for (let totalMin = startMin; totalMin <= endMin; totalMin += 30) {
+      const h = Math.floor(totalMin / 60) % 24;
+      const m = totalMin % 60;
+
+      const hour24 = h.toString().padStart(2, '0');
+      const minute = m.toString().padStart(2, '0');
+      const time24 = `${hour24}:${minute}`;
+
+      const period = h >= 12 ? 'PM' : 'AM';
+      const hour12 = h % 12 === 0 ? 12 : h % 12;
+      const display = `${hour12}:${minute} ${period}`;
+
+      slots.push({ value: time24, label: display });
+    }
     return slots;
-  }, []);
+  }, [selectedCourt]);
+
+  // Adjust start/end time when court or slots change
+  React.useEffect(() => {
+    if (timeSlots.length > 0) {
+      const isValidStart = timeSlots.some(s => s.value === bookingStartTime);
+      if (!isValidStart) setBookingStartTime(timeSlots[0].value);
+
+      const isValidEnd = timeSlots.some(s => s.value === bookingEndTime);
+      if (!isValidEnd && timeSlots.length > 2) setBookingEndTime(timeSlots[2].value);
+      else if (!isValidEnd) setBookingEndTime(timeSlots[timeSlots.length-1].value);
+    }
+  }, [timeSlots, bookingStartTime, bookingEndTime]);
 
   const calculateHours = (start: string, end: string) => {
     const [startH, startM] = start.split(':').map(Number);
@@ -100,30 +129,19 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
   }, [bookingStartTime, bookingEndTime, bookingType]);
 
   const totalAmount = useMemo(() => {
-    const drinksTotal = selectedDrinks.reduce((acc, drink) => {
-      const qty = typeof drink.quantity === 'number' ? drink.quantity : 0;
-      const price = typeof drink.priceAtTime === 'number' ? drink.priceAtTime : 0;
-      return acc + (price * qty);
-    }, 0);
     const coachingTotal = bookingType === BookingType.COACHING ? (Number(coachingFee) || 0) : 0;
-    return (Number(bookingAmount) || 0) + drinksTotal + coachingTotal;
-  }, [bookingAmount, selectedDrinks, coachingFee, bookingType]);
-
-  const handleUpdateQty = (drinkId: string, val: string) => {
-    setSelectedDrinks(prev => prev.map(sd => {
-      if (sd.drinkId === drinkId) {
-        if (val === '') return { ...sd, quantity: '' };
-        const num = Number(val);
-        return { ...sd, quantity: isNaN(num) ? 0 : num };
-      }
-      return sd;
-    }));
-  };
+    return (Number(bookingAmount) || 0) + coachingTotal;
+  }, [bookingAmount, coachingFee, bookingType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName || !phoneNumber) {
       toast.error("Please fill in basic customer details.");
+      return;
+    }
+
+    if (bookingType === BookingType.COURT && !courtId) {
+      toast.error("Please select a court.");
       return;
     }
 
@@ -149,56 +167,17 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
             extra_hours_enabled: false,
             extra_hours_duration: 0,
             extra_hours_amount: 0,
-            total_amount: totalAmount
+            total_amount: totalAmount,
+            court_id: courtId || null,
+            payment_status: paymentStatus,
+            advance_paid: Number(advancePaid) || 0,
+            status: 'active'
           })
           .select()
           .single();
 
       if (bookingError) throw bookingError;
       if (!bookingData) throw new Error("Booking created but no data returned from database.");
-
-      // 2. Insert drinks if any
-      const drinksToInsert = selectedDrinks
-          .filter(sd => typeof sd.quantity === 'number' && sd.quantity > 0)
-          .map(sd => ({
-            booking_id: bookingData.id,
-            drink_id: sd.drinkId,
-            quantity: Number(sd.quantity),
-            price_at_time: Number(sd.priceAtTime) || 0
-          }));
-
-      if (drinksToInsert.length > 0) {
-        console.log('Inserting drinks:', drinksToInsert);
-        const { error: drinksError } = await supabase
-            .from('booking_drinks')
-            .insert(drinksToInsert);
-
-        if (drinksError) {
-          console.error('Error inserting drinks:', drinksError);
-          throw new Error(`Failed to save drinks: ${drinksError.message}`);
-        }
-
-        // Update Inventory Stock
-        for (const drink of drinksToInsert) {
-          const item = inventory.find(i => i.id === drink.drink_id);
-          if (item) {
-            const currentStock = Number(item.stockQuantity) || 0;
-            const newStock = Math.max(0, currentStock - drink.quantity);
-
-            const { error: invUpdateError } = await supabase
-                .from('inventory')
-                .update({ stock_quantity: newStock })
-                .eq('id', drink.drink_id);
-
-            if (invUpdateError) {
-              console.error(`Failed to update stock for ${item.name}:`, invUpdateError);
-              // We don't throw here to avoid failing the whole booking if just stock update fails,
-              // but we should probably notify the user.
-              toast.warning(`Booking saved, but failed to update stock for ${item.name}`);
-            }
-          }
-        }
-      }
 
       // Success Reset
       setCustomerName('');
@@ -207,11 +186,8 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
       setCoachingFee(0);
       setBookingDate(getLocalDateString());
       setBookingAmount(0);
-      setSelectedDrinks(inventory.map(item => ({
-        drinkId: item.id,
-        quantity: 0,
-        priceAtTime: item.price
-      })));
+      setAdvancePaid(0);
+      setPaymentStatus('to_be_paid');
       onSave(); // Refresh global data
       toast.success("Entry saved successfully!");
     } catch (error: any) {
@@ -301,6 +277,53 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Sport</label>
+                  <div className="relative">
+                    <Trophy className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <select
+                        value={sport}
+                        onChange={(e) => setSport(e.target.value as Sport)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                    >
+                      {availableSports.length > 0 ? (
+                          availableSports.map(s => (
+                              <option key={s} value={s}>{s}</option>
+                          ))
+                      ) : (
+                          Object.values(Sport).map(s => (
+                              <option key={s} value={s}>{s}</option>
+                          ))
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                {bookingType === BookingType.COURT && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Select Court</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {courts.filter(c => c.sport === sport).map(court => (
+                            <button
+                                key={court.id}
+                                type="button"
+                                onClick={() => setCourtId(court.id)}
+                                className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                                    courtId === court.id
+                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
+                                }`}
+                            >
+                              {court.name}
+                            </button>
+                        ))}
+                        {courts.filter(c => c.sport === sport).length === 0 && (
+                            <p className="col-span-3 text-[10px] text-slate-400 italic">No courts found for this sport</p>
+                        )}
+                      </div>
+                    </div>
+                )}
+
+                <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Date</label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -352,17 +375,49 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                 )}
 
                 {bookingType === BookingType.MEMBERSHIP && (
-                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase">Membership ID / Plan</label>
-                      <div className="relative">
-                        <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input
-                            type="text"
-                            value={membershipId}
-                            onChange={(e) => setMembershipId(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
-                            placeholder="e.g. GOLD-2024-001"
-                        />
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Available Plans for {sport}</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {filteredPlans.length > 0 ? (
+                              filteredPlans.map(plan => (
+                                  <button
+                                      key={plan.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setMembershipId(plan.name);
+                                        setBookingAmount(plan.price);
+                                      }}
+                                      className={`p-3 rounded-xl border text-left transition-all ${
+                                          membershipId === plan.name
+                                              ? 'bg-indigo-50 border-indigo-600 ring-1 ring-indigo-100'
+                                              : 'bg-white border-slate-100 hover:border-indigo-200'
+                                      }`}
+                                  >
+                                    <p className="text-xs font-black text-slate-900 line-clamp-1">{plan.name}</p>
+                                    <p className="text-[10px] text-indigo-600 font-bold">₹{plan.price} / {plan.duration}</p>
+                                  </button>
+                              ))
+                          ) : (
+                              <p className="col-span-2 text-[10px] text-slate-400 italic bg-white p-3 rounded-xl border border-slate-100">
+                                No plans found for {sport}.
+                              </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Member ID / Plan Details</label>
+                        <div className="relative">
+                          <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input
+                              type="text"
+                              value={membershipId}
+                              onChange={(e) => setMembershipId(e.target.value)}
+                              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
+                              placeholder="e.g. GOLD-2024-001"
+                          />
+                        </div>
                       </div>
                     </div>
                 )}
@@ -382,28 +437,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                       </div>
                     </div>
                 )}
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Sport</label>
-                  <div className="relative">
-                    <Trophy className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <select
-                        value={sport}
-                        onChange={(e) => setSport(e.target.value as Sport)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
-                    >
-                      {availableSports.length > 0 ? (
-                          availableSports.map(s => (
-                              <option key={s} value={s}>{s}</option>
-                          ))
-                      ) : (
-                          Object.values(Sport).map(s => (
-                              <option key={s} value={s}>{s}</option>
-                          ))
-                      )}
-                    </select>
-                  </div>
-                </div>
 
                 {bookingType === BookingType.COURT && (
                     <div className="space-y-1.5">
@@ -430,9 +463,13 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                       </div>
                     </div>
                 )}
+              </div>
 
+              <div className="space-y-6">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Base Amount (₹)</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase">
+                    {(bookingType === BookingType.MEMBERSHIP || bookingType === BookingType.COACHING) ? 'Membership Amount' : 'Booking Amount'} (₹)
+                  </label>
                   <div className="relative">
                     <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
@@ -444,14 +481,50 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                     />
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Payment Status</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {(['to_be_paid', 'partially_paid', 'prepaid'] as const).map(status => (
+                        <button
+                            key={status}
+                            type="button"
+                            onClick={() => setPaymentStatus(status)}
+                            className={`py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all ${
+                                paymentStatus === status
+                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-md'
+                                    : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300'
+                            }`}
+                        >
+                          {status.replace(/_/g, ' ')}
+                        </button>
+                    ))}
+                  </div>
+                </div>
+
+                {(paymentStatus === 'partially_paid' || paymentStatus === 'prepaid') && (
+                    <div className="space-y-1.5 animate-in slide-in-from-top-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Advance Collected (₹)</label>
+                      <div className="relative">
+                        <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                            type="number"
+                            min="0"
+                            value={advancePaid}
+                            onChange={(e) => setAdvancePaid(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full pl-10 pr-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-black text-emerald-900"
+                        />
+                      </div>
+                    </div>
+                )}
+
                 <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50">
                   <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-3">Summary</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Base Amount</span>
+                    <span className="text-slate-500">
+                      {(bookingType === BookingType.MEMBERSHIP || bookingType === BookingType.COACHING) ? 'Membership Amount' : 'Base Amount'}
+                    </span>
                       <span className="font-bold text-slate-700">₹{Number(bookingAmount) || 0}</span>
                     </div>
                     {bookingType === BookingType.COACHING && (
@@ -460,77 +533,21 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, venueId, a
                           <span className="font-bold text-slate-700">₹{Number(coachingFee) || 0}</span>
                         </div>
                     )}
+                    {paymentStatus !== 'to_be_paid' && (
+                        <div className="flex justify-between text-emerald-600 font-bold">
+                          <span>Advance Paid</span>
+                          <span>-₹{Number(advancePaid) || 0}</span>
+                        </div>
+                    )}
+                    <div className="pt-2 border-t border-indigo-200 flex justify-between font-black text-slate-900">
+                      <span>Remaining (at start)</span>
+                      <span>₹{Math.max(0, totalAmount - (Number(advancePaid) || 0))}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </section>
-
-          {/* Inventory Section */}
-          {bookingType === BookingType.COURT && (
-              <section className="space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <h3 className="text-slate-900 font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-                    <Package className="w-4 h-4 text-indigo-500" />
-                    3. Inventory & Drinks
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                  {inventory.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/30">
-                        <AlertCircle className="w-8 h-8 text-slate-300 mb-2" />
-                        <p className="text-slate-500 text-sm font-medium">Your Inventory is currently empty</p>
-                        <p className="text-slate-400 text-xs mt-1">Visit the 'Inventory' tab to add items.</p>
-                      </div>
-                  ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {inventory.map((item) => {
-                          const selectedDrink = selectedDrinks.find(sd => sd.drinkId === item.id) || { quantity: 0, priceAtTime: item.price };
-                          return (
-                              <div key={item.id} className="flex items-center gap-4 p-3 bg-white border border-slate-200 rounded-2xl animate-in zoom-in-95 duration-200 shadow-sm">
-                                <div className="w-14 h-14 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0 overflow-hidden">
-                                  {item.imageUrl ? (
-                                      <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                  ) : (
-                                      <Package className="text-slate-400 w-6 h-6" />
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-slate-700 truncate">{item.name}</p>
-                                  <p className="text-[10px] text-slate-500 font-bold">₹{item.price} &bull; {item.stockQuantity} Left</p>
-
-                                  <div className="flex items-center gap-1 mt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleUpdateQty(item.id, String(Math.max(0, (Number(selectedDrink.quantity) || 0) - 1)))}
-                                        className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 min-w-[3rem] text-center">
-                                      <span className="text-xs font-bold text-slate-900">{selectedDrink.quantity || 0}</span>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleUpdateQty(item.id, String(Math.min(item.stockQuantity, (Number(selectedDrink.quantity) || 0) + 1)))}
-                                        className="w-8 h-8 flex items-center justify-center bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
-                                    >
-                                      <Plus className="w-3.5 h-3.5" />
-                                    </button>
-                                    <div className="ml-2">
-                                      <span className="text-[10px] font-black text-slate-900">₹{(Number(selectedDrink.quantity) || 0) * item.price}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                          );
-                        })}
-                      </div>
-                  )}
-                </div>
-              </section>
-          )}
 
           {/* Footer & Totals */}
           <div className="pt-8 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-8">

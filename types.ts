@@ -49,6 +49,29 @@ export interface Booking {
   bookingDate: string;
   totalHours: number;
   sport: Sport;
+  courtId?: string;
+  paymentStatus: 'prepaid' | 'to_be_paid' | 'partially_paid';
+  advancePaid: number;
+  status: 'active' | 'completed';
+}
+
+export interface Court {
+  id: string;
+  name: string; // e.g., "Court 1"
+  sport: Sport;
+  venueId: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface MembershipPlanDefinition {
+  id: string;
+  name: string;
+  price: number;
+  duration: 'monthly' | 'quarterly' | 'yearly';
+  sport: Sport;
+  description?: string;
+  venueId: string;
 }
 
 export interface PosSaleItem {

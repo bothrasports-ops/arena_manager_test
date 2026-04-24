@@ -12,7 +12,8 @@ import {
   ShoppingBag,
   Users,
   CalendarClock,
-  ShieldCheck
+  ShieldCheck,
+  Grid
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import BookingForm from './components/BookingForm';
@@ -24,22 +25,26 @@ import DrinkSales from './components/DrinkSales';
 import ActiveBookings from './components/ActiveBookings';
 import MembershipManager from './components/MembershipManager';
 import UserManagement from './components/UserManagement';
-import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, UserProfile } from './types';
+import CourtsManager from './components/CourtsManager';
+import MembershipPlanManager from './components/MembershipPlanManager';
+import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, UserProfile, Court, MembershipPlanDefinition } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const App: React.FC = () => {
   const isConfigMissing = !isSupabaseConfigured;
-  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'users'>('active');
+  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'users' | 'court_manager' | 'plans'>('active');
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'checking'>('checking');
-  const [appState, setAppState] = useState<AppState>({
+  const [appState, setAppState] = useState<AppState & { courts: Court[], membershipPlans: MembershipPlanDefinition[] }>({
     user: null,
     profile: null,
     bookings: [],
     inventory: [],
     posSales: [],
-    members: []
+    members: [],
+    courts: [],
+    membershipPlans: []
   });
 
   // Handle Auth Session
@@ -168,7 +173,23 @@ const App: React.FC = () => {
       // Use the venue ID from the profile for all data fetching
       const targetVenueId = profileData.venue_id || profileData.id;
 
-      // Fetch Inventory
+      // 1. Fetch Courts
+      const { data: courtsData, error: courtsError } = await supabase
+          .from('courts')
+          .select('*')
+          .eq('venue_id', targetVenueId);
+
+      if (courtsError) console.error("Error fetching courts:", courtsError);
+
+      // 2. Fetch Membership Plans
+      const { data: plansData, error: plansError } = await supabase
+          .from('membership_plan_definitions')
+          .select('*')
+          .eq('venue_id', targetVenueId);
+
+      if (plansError) console.error("Error fetching plans:", plansError);
+
+      // 3. Fetch Inventory
       const { data: inventoryData, error: invError } = await supabase
           .from('inventory')
           .select('*')
@@ -243,6 +264,10 @@ const App: React.FC = () => {
         sport: b.sport as Sport,
         totalHours: b.total_hours,
         totalAmount: b.total_amount,
+        courtId: b.court_id,
+        paymentStatus: b.payment_status || 'to_be_paid',
+        advancePaid: b.advance_paid || 0,
+        status: b.status || 'active',
         timestamp: new Date(b.created_at).getTime()
       }));
 
@@ -280,7 +305,9 @@ const App: React.FC = () => {
         inventory: mappedInventory,
         bookings: mappedBookings,
         posSales: mappedPosSales,
-        members: mappedMembers
+        members: mappedMembers,
+        courts: courtsData || [],
+        membershipPlans: plansData || []
       }));
     } catch (error: any) {
       console.error('Error fetching data from Supabase:', error);
@@ -456,6 +483,14 @@ const App: React.FC = () => {
                   icon={<CalendarClock className="w-5 h-5" />}
                   label="Active Bookings"
               />
+              {isAdmin && (
+                  <NavButton
+                      active={activeTab === 'court_manager'}
+                      onClick={() => setActiveTab('court_manager')}
+                      icon={<Grid className="w-5 h-5" />}
+                      label="Court Manager"
+                  />
+              )}
               <NavButton
                   active={activeTab === 'new'}
                   onClick={() => setActiveTab('new')}
@@ -474,12 +509,14 @@ const App: React.FC = () => {
                   icon={<Users className="w-5 h-5" />}
                   label="Memberships"
               />
-              <NavButton
-                  active={activeTab === 'inventory'}
-                  onClick={() => setActiveTab('inventory')}
-                  icon={<Package className="w-5 h-5" />}
-                  label="Inventory"
-              />
+              {isAdmin && (
+                  <NavButton
+                      active={activeTab === 'inventory'}
+                      onClick={() => setActiveTab('inventory')}
+                      icon={<Package className="w-5 h-5" />}
+                      label="Inventory"
+                  />
+              )}
               <NavButton
                   active={activeTab === 'drinks'}
                   onClick={() => setActiveTab('drinks')}
@@ -492,6 +529,14 @@ const App: React.FC = () => {
                       onClick={() => setActiveTab('users')}
                       icon={<Users className="w-5 h-5" />}
                       label="Staff"
+                  />
+              )}
+              {isAdmin && (
+                  <NavButton
+                      active={activeTab === 'plans'}
+                      onClick={() => setActiveTab('plans')}
+                      icon={<PlusCircle className="w-5 h-5" />}
+                      label="Plans"
                   />
               )}
             </nav>
@@ -514,12 +559,30 @@ const App: React.FC = () => {
                         <ActiveBookings
                             bookings={appState.bookings}
                             inventory={appState.inventory}
+                            courts={appState.courts}
                             onUpdate={refreshData}
+                        />
+                    )}
+                    {activeTab === 'court_manager' && (
+                        <CourtsManager
+                            courts={appState.courts}
+                            bookings={appState.bookings}
+                            onUpdate={refreshData}
+                            venueId={appState.profile?.venue_id || appState.user?.id}
+                            isAdmin={isAdmin}
+                        />
+                    )}
+                    {activeTab === 'plans' && isAdmin && (
+                        <MembershipPlanManager
+                            plans={appState.membershipPlans}
+                            onUpdate={refreshData}
+                            venueId={appState.profile?.venue_id || appState.user?.id}
                         />
                     )}
                     {activeTab === 'members' && (
                         <MembershipManager
                             members={appState.members}
+                            plans={appState.membershipPlans}
                             onUpdate={refreshData}
                             venueId={appState.user?.id}
                             availableSports={appState.profile?.available_sports || []}
@@ -529,6 +592,8 @@ const App: React.FC = () => {
                         <BookingForm
                             onSave={refreshData}
                             inventory={appState.inventory}
+                            courts={appState.courts}
+                            membershipPlans={appState.membershipPlans}
                             venueId={appState.user?.id}
                             availableSports={appState.profile?.available_sports || []}
                         />
@@ -537,7 +602,10 @@ const App: React.FC = () => {
                         <BookingList
                             bookings={appState.bookings}
                             inventory={appState.inventory}
+                            courts={appState.courts}
                             onDelete={handleDeleteBooking}
+                            isAdmin={isAdmin}
+                            onUpdate={refreshData}
                         />
                     )}
                     {activeTab === 'inventory' && (
@@ -575,6 +643,7 @@ const App: React.FC = () => {
           <MobileNavButton active={activeTab === 'new'} onClick={() => setActiveTab('new')} icon={<PlusCircle className="w-6 h-6" />} label="New" />
           <MobileNavButton active={activeTab === 'members'} onClick={() => setActiveTab('members')} icon={<Users className="w-6 h-6" />} label="Members" />
           <MobileNavButton active={activeTab === 'drinks'} onClick={() => setActiveTab('drinks')} icon={<ShoppingBag className="w-6 h-6" />} label="Sale" />
+          {isAdmin && <MobileNavButton active={activeTab === 'court_manager'} onClick={() => setActiveTab('court_manager')} icon={<Grid className="w-6 h-6" />} label="Courts" />}
           {isAdmin && <MobileNavButton active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<ShieldCheck className="w-6 h-6" />} label="Staff" />}
         </nav>
         <div className="lg:hidden h-16" />
