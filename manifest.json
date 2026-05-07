@@ -1,6 +1,6 @@
 {
-  "name": "ArenaSync Booking Manager",
-  "short_name": "ArenaSync",
+  "name": "VenueIQ",
+  "short_name": "VenueIQ",
   "description": "High-performance booking management system for sports facilities.",
   "start_url": "/",
   "display": "standalone",
