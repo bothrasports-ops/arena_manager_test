@@ -27,8 +27,8 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                                        booking,
                                                        inventory,
                                                        courts,
-                                                       venueName = 'ArenaSync Venue',
-                                                       venueEmail = 'contact@arenasync.com'
+                                                       venueName = 'VenueIQ',
+                                                       venueEmail = 'contact@veneuiq.com'
                                                    }) => {
     if (!isOpen) return null;
 
