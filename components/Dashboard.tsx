@@ -14,17 +14,19 @@ import {
   CreditCard,
   GraduationCap
 } from 'lucide-react';
-import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType } from '../types';
+import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Member, Student } from '../types';
 
 interface DashboardProps {
   bookings: Booking[];
   inventory: DrinkInventoryItem[];
   posSales: PosSale[];
+  members: Member[];
+  students: Student[];
 }
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
-const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) => {
+const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, members, students }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
   const [sportFilter, setSportFilter] = useState<string>('All');
 
@@ -63,6 +65,10 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
       if (!matchesSport) return false;
       return isInRange(booking.timestamp);
     });
+
+    const courtBookingsCount = filteredBookings.filter(b => (b.bookingType || BookingType.COURT) === BookingType.COURT).length;
+    const membershipBookingsCount = filteredBookings.filter(b => b.bookingType === BookingType.MEMBERSHIP).length;
+    const coachingBookingsCount = filteredBookings.filter(b => b.bookingType === BookingType.COACHING).length;
 
     // Filter POS sales based on time range
     const filteredPosSales = posSales.filter(sale => isInRange(sale.createdAt));
@@ -153,6 +159,14 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
     const totalRevenue = totalDrinkRevenue + totalBookingRevenue + totalMembershipRevenue + totalCoachingRevenue;
     const totalProfit = (totalDrinkRevenue - totalDrinkCost) + totalBookingRevenue + totalMembershipRevenue + totalCoachingRevenue;
 
+    // Membership Stats
+    const activeMembers = members.filter(m => m.status === 'active' || m.status === 'renewal_required').length;
+    const expiredMembers = members.filter(m => m.status === 'expired').length;
+
+    // Coaching Stats
+    const activeStudents = students.filter(s => s.status === 'active').length;
+    const expiredStudents = students.filter(s => s.status === 'expired').length;
+
     return {
       totalDrinksSold,
       totalDrinkRevenue,
@@ -163,11 +177,17 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
       totalRevenue,
       totalProfit,
       salesBreakdown: sortedSales,
-      bookingCount: filteredBookings.length,
+      bookingCount: courtBookingsCount,
+      membershipTransactionCount: membershipBookingsCount,
+      coachingTransactionCount: coachingBookingsCount,
       rangeLabel: rangeLabels[timeRange],
-      rangeSubtitle: rangeSubtitles[timeRange]
+      rangeSubtitle: rangeSubtitles[timeRange],
+      activeMembers,
+      expiredMembers,
+      activeStudents,
+      expiredStudents
     };
-  }, [bookings, inventory, posSales, timeRange, sportFilter]);
+  }, [bookings, inventory, posSales, members, students, timeRange, sportFilter]);
 
   return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
@@ -180,7 +200,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Analytics Period</h3>
-                <p className="text-xs text-slate-500 font-medium">Viewing data for {stats.rangeLabel.toLowerCase()}</p>
+                <p className="text-xs text-slate-500 font-medium">Viewing data for {(stats.rangeLabel || '').toLowerCase()}</p>
               </div>
             </div>
 
@@ -246,7 +266,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
           <StatCard
               title="Drinks Sold"
               value={stats.totalDrinksSold.toString()}
-              subtitle={`Units ${stats.rangeLabel.toLowerCase()}`}
+              subtitle={`Units ${(stats.rangeLabel || '').toLowerCase()}`}
               icon={<ShoppingBag className="w-6 h-6 text-indigo-600" />}
               color="indigo"
           />
@@ -267,6 +287,9 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
               Court Revenue
             </h3>
             <p className="text-2xl font-black text-slate-900">₹{stats.totalBookingRevenue.toLocaleString()}</p>
+            <div className="flex gap-3 mt-1">
+              <p className="text-[10px] text-slate-400 font-bold uppercase">Bookings: {stats.bookingCount}</p>
+            </div>
           </div>
           <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
             <h3 className="text-indigo-900 font-bold mb-2 flex items-center gap-2">
@@ -274,6 +297,10 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
               Membership
             </h3>
             <p className="text-2xl font-black text-indigo-600">₹{stats.totalMembershipRevenue.toLocaleString()}</p>
+            <div className="flex gap-3 mt-1">
+              <p className="text-[10px] text-emerald-600 font-bold uppercase">Active: {stats.activeMembers}</p>
+              <p className="text-[10px] text-rose-400 font-bold uppercase">Exp: {stats.expiredMembers}</p>
+            </div>
           </div>
           <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100">
             <h3 className="text-amber-900 font-bold mb-2 flex items-center gap-2">
@@ -281,6 +308,10 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
               Coaching
             </h3>
             <p className="text-2xl font-black text-amber-600">₹{stats.totalCoachingRevenue.toLocaleString()}</p>
+            <div className="flex gap-3 mt-1">
+              <p className="text-[10px] text-emerald-600 font-bold uppercase">Active: {stats.activeStudents}</p>
+              <p className="text-[10px] text-rose-400 font-bold uppercase">Exp: {stats.expiredStudents}</p>
+            </div>
           </div>
           <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100">
             <h3 className="text-emerald-900 font-bold mb-2 flex items-center gap-2">
@@ -288,6 +319,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales }) 
               Drink Sales
             </h3>
             <p className="text-2xl font-black text-emerald-600">₹{stats.totalDrinkRevenue.toLocaleString()}</p>
+            <p className="text-[10px] text-emerald-500 font-bold uppercase mt-1">Units: {stats.totalDrinksSold}</p>
           </div>
         </div>
 

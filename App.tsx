@@ -32,14 +32,28 @@ import MembershipManager from './components/MembershipManager';
 import UserManagement from './components/UserManagement';
 import CourtsManager from './components/CourtsManager';
 import MembershipPlanManager from './components/MembershipPlanManager';
+import CoachingManager from './components/CoachingManager';
 import Finances from './components/Finances';
 import PlatformManager from './components/PlatformManager';
-import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, UserProfile, Court, MembershipPlanDefinition, BookingPlatform } from './types';
+import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, Student, UserProfile, Court, MembershipPlanDefinition, BookingPlatform } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const App: React.FC = () => {
   const isConfigMissing = !isSupabaseConfigured;
-  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'users' | 'court_manager' | 'plans' | 'finances' | 'platforms'>('active');
+  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'coaching' | 'users' | 'court_manager' | 'plans' | 'finances' | 'platforms'>('active');
+  const [initialBookingData, setInitialBookingData] = useState<{courtId?: string, date?: string, startTime?: string} | null>(null);
+
+  const handleBookSlot = (courtId: string, time: string, date: string) => {
+    setInitialBookingData({ courtId, date, startTime: time });
+    setActiveTab('new');
+  };
+
+  // Reset initial booking data when navigating away, but allow entering 'new' tab with data
+  useEffect(() => {
+    if (activeTab !== 'new' && initialBookingData) {
+      setInitialBookingData(null);
+    }
+  }, [activeTab]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'checking'>('checking');
@@ -50,6 +64,7 @@ const App: React.FC = () => {
     inventory: [],
     posSales: [],
     members: [],
+    students: [],
     courts: [],
     membershipPlans: [],
     platforms: []
@@ -103,7 +118,7 @@ const App: React.FC = () => {
       const { data: profileRows, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
-          .eq('email', appState.user.email);
+          .eq('email', String(appState.user.email));
 
       if (profileError) throw profileError;
 
@@ -118,8 +133,8 @@ const App: React.FC = () => {
         if (row.id !== appState.user.id) {
           const { data: updatedRow, error: updateError } = await supabase
               .from('user_profiles')
-              .update({ id: appState.user.id })
-              .eq('email', appState.user.email)
+              .update({ id: String(appState.user.id) })
+              .eq('email', String(appState.user.email))
               .select()
               .single();
 
@@ -179,7 +194,15 @@ const App: React.FC = () => {
       }
 
       // Use the venue ID from the profile for all data fetching
+      // FOR STAFF: profileData.venue_id is the admin's ID (the master venue ID)
+      // FOR ADMIN: profileData.venue_id is their own ID
       const targetVenueId = profileData.venue_id || profileData.id;
+
+      if (!targetVenueId) {
+        throw new Error("Could not determine your venue association.");
+      }
+
+      console.log("Fetching data for venue:", targetVenueId);
 
       // 1. Fetch Courts
       const { data: courtsData, error: courtsError } = await supabase
@@ -224,11 +247,37 @@ const App: React.FC = () => {
       if (membersError) throw membersError;
 
       const mappedMembers: Member[] = (membersData || []).map((m: any) => ({
-        ...m,
+        id: m.id,
+        venueId: m.venue_id,
+        customerName: m.customer_name,
+        phoneNumber: m.phone_number,
+        plan: m.plan as any,
+        startDate: m.start_date,
+        endDate: m.end_date,
         hoursPerDay: m.hours_per_day,
         status: m.status as any,
-        sport: m.sport as any,
-        plan: m.plan as any
+        sport: m.sport as any
+      }));
+
+      // Fetch Coaching Students
+      const { data: studentsData, error: studentsError } = await supabase
+          .from('coaching_students')
+          .select('*')
+          .eq('venue_id', targetVenueId);
+
+      if (studentsError) console.error("Error fetching students:", studentsError);
+
+      const mappedStudents: Student[] = (studentsData || []).map((s: any) => ({
+        id: s.id,
+        venueId: s.venue_id,
+        studentName: s.student_name,
+        phoneNumber: s.phone_number,
+        coachingFee: s.coaching_fee,
+        startDate: s.start_date,
+        endDate: s.end_date,
+        schedule: s.schedule as any,
+        status: s.status as any,
+        sport: s.sport as any
       }));
 
       // Fetch Bookings with their related drinks
@@ -316,6 +365,16 @@ const App: React.FC = () => {
 
       if (platesError) console.error("Error fetching platforms:", platesError);
 
+      const mappedPlans: MembershipPlanDefinition[] = (plansData || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        duration: p.duration,
+        sport: p.sport as any,
+        description: p.description,
+        venueId: p.venue_id
+      }));
+
       setAppState(prev => ({
         ...prev,
         profile: profileData,
@@ -323,8 +382,9 @@ const App: React.FC = () => {
         bookings: mappedBookings,
         posSales: mappedPosSales,
         members: mappedMembers,
+        students: mappedStudents,
         courts: courtsData || [],
-        membershipPlans: plansData || [],
+        membershipPlans: mappedPlans,
         platforms: platformsData || []
       }));
     } catch (error: any) {
@@ -496,8 +556,16 @@ const App: React.FC = () => {
                         <DropdownItem
                             onClick={() => setActiveTab('members')}
                             icon={<Users className="w-4 h-4" />}
-                            label="Memberships"
+                            label="Membership"
                             active={activeTab === 'members'}
+                        />
+                    )}
+                    {isAdmin && (
+                        <DropdownItem
+                            onClick={() => setActiveTab('coaching')}
+                            icon={<Trophy className="w-4 h-4" />}
+                            label="Coaching"
+                            active={activeTab === 'coaching'}
                         />
                     )}
                     <DropdownItem
@@ -592,6 +660,22 @@ const App: React.FC = () => {
                       label="Finances"
                   />
               )}
+              {isAdmin && (
+                  <NavButton
+                      active={activeTab === 'members'}
+                      onClick={() => setActiveTab('members')}
+                      icon={<Users className="w-5 h-5" />}
+                      label="Membership"
+                  />
+              )}
+              {isAdmin && (
+                  <NavButton
+                      active={activeTab === 'coaching'}
+                      onClick={() => setActiveTab('coaching')}
+                      icon={<Trophy className="w-5 h-5" />}
+                      label="Coaching"
+                  />
+              )}
               <NavButton
                   active={activeTab === 'new'}
                   onClick={() => setActiveTab('new')}
@@ -618,6 +702,8 @@ const App: React.FC = () => {
                             bookings={appState.bookings}
                             inventory={appState.inventory}
                             posSales={appState.posSales}
+                            members={appState.members}
+                            students={appState.students}
                         />
                     )}
                     {activeTab === 'platforms' && isAdmin && (
@@ -632,6 +718,8 @@ const App: React.FC = () => {
                             bookings={appState.bookings}
                             inventory={appState.inventory}
                             posSales={appState.posSales}
+                            members={appState.members}
+                            students={appState.students}
                         />
                     )}
                     {activeTab === 'active' && (
@@ -651,6 +739,7 @@ const App: React.FC = () => {
                             onUpdate={refreshData}
                             venueId={appState.profile?.venue_id || appState.user?.id}
                             isAdmin={isAdmin}
+                            onBookSlot={handleBookSlot}
                         />
                     )}
                     {activeTab === 'plans' && isAdmin && (
@@ -665,19 +754,31 @@ const App: React.FC = () => {
                             members={appState.members}
                             plans={appState.membershipPlans}
                             onUpdate={refreshData}
-                            venueId={appState.user?.id}
+                            venueId={appState.profile?.venue_id || appState.user?.id}
+                            availableSports={appState.profile?.available_sports || []}
+                        />
+                    )}
+                    {activeTab === 'coaching' && isAdmin && (
+                        <CoachingManager
+                            students={appState.students}
+                            onUpdate={refreshData}
+                            venueId={appState.profile?.venue_id || appState.user?.id}
                             availableSports={appState.profile?.available_sports || []}
                         />
                     )}
                     {activeTab === 'new' && (
                         <BookingForm
-                            onSave={refreshData}
+                            onSave={() => {
+                              setInitialBookingData(null);
+                              refreshData();
+                            }}
                             inventory={appState.inventory}
                             courts={appState.courts}
                             membershipPlans={appState.membershipPlans}
                             platforms={appState.platforms}
-                            venueId={appState.user?.id}
+                            venueId={appState.profile?.venue_id || appState.user?.id}
                             availableSports={appState.profile?.available_sports || []}
+                            initialData={initialBookingData || undefined}
                         />
                     )}
                     {activeTab === 'list' && (
@@ -697,7 +798,7 @@ const App: React.FC = () => {
                             inventory={appState.inventory}
                             bookings={appState.bookings}
                             onUpdate={refreshData}
-                            venueId={appState.profile?.id}
+                            venueId={appState.profile?.venue_id || appState.user?.id}
                             userRole={appState.profile?.role}
                         />
                     )}
@@ -706,7 +807,7 @@ const App: React.FC = () => {
                             inventory={appState.inventory}
                             sales={appState.posSales}
                             onSave={refreshData}
-                            venueId={appState.profile?.id}
+                            venueId={appState.profile?.venue_id || appState.user?.id}
                         />
                     )}
                     {activeTab === 'users' && isAdmin && (

@@ -78,8 +78,8 @@ const BookingList: React.FC<BookingListProps> = ({
   };
 
   const filteredBookings = bookings.filter(b => {
-    const matchesSearch = b.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        b.phoneNumber.includes(searchTerm);
+    const matchesSearch = (b.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (b.phoneNumber || '').includes(searchTerm);
     const matchesPlatform = platformFilter === 'All' || b.platform === platformFilter;
     const matchesSport = sportFilter === 'All' || b.sport === sportFilter;
     const matchesStatus = statusFilter === 'All' || b.status === statusFilter;

@@ -41,7 +41,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
             const { data, error } = await supabase
                 .from('user_profiles')
                 .select('*')
-                .eq('venue_id', targetVenueId);
+                .eq('venue_id', String(targetVenueId));
             if (error) throw error;
 
             const mapped: UserProfile[] = (data || []).map((row: any) => ({

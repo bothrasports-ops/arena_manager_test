@@ -21,6 +21,8 @@ const PlatformManager: React.FC<PlatformManagerProps> = ({ platforms, venueId, o
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [newName, setNewName] = useState('');
 
+    const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
     const handleAddPlatform = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newName.trim()) return;
@@ -48,21 +50,30 @@ const PlatformManager: React.FC<PlatformManagerProps> = ({ platforms, venueId, o
     };
 
     const handleRemovePlatform = async (id: string) => {
+        console.log('Attempting to remove platform with ID:', id);
         if (!confirm('Are you sure you want to remove this platform?')) return;
 
+        setIsDeleting(id);
         try {
-            const { error } = await supabase
+            const { error, status, statusText } = await supabase
                 .from('booking_platforms')
                 .delete()
                 .eq('id', id);
 
-            if (error) throw error;
+            if (error) {
+                console.error('Supabase delete error:', error);
+                throw error;
+            }
+
+            console.log('Delete response status:', status, statusText);
 
             toast.success('Platform removed successfully');
             onRefresh();
         } catch (error: any) {
-            console.error('Error removing platform:', error);
+            console.error('Error removing platform caught:', error);
             toast.error(error.message || 'Failed to remove platform');
+        } finally {
+            setIsDeleting(null);
         }
     };
 
@@ -122,9 +133,11 @@ const PlatformManager: React.FC<PlatformManagerProps> = ({ platforms, venueId, o
                                         </div>
                                         <button
                                             onClick={() => handleRemovePlatform(platform.id)}
-                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                            disabled={isDeleting === platform.id}
+                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all md:opacity-0 md:group-hover:opacity-100 disabled:opacity-50"
+                                            title="Remove Platform"
                                         >
-                                            <Trash2 className="w-4 h-4" />
+                                            {isDeleting === platform.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                         </button>
                                     </div>
                                 ))}

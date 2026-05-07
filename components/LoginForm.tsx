@@ -34,9 +34,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
     setLoading(true);
 
     // If it's a full email, use it. Otherwise, assume it's a handle for the .local domain
-    const loginEmail = adminName.includes('@')
-        ? adminName.trim().toLowerCase()
-        : `${adminName.toLowerCase().replace(/\s+/g, '')}@arenasync.local`;
+    const safeAdminName = adminName || '';
+    const loginEmail = safeAdminName.includes('@')
+        ? safeAdminName.trim().toLowerCase()
+        : `${safeAdminName.toLowerCase().replace(/\s+/g, '')}@arenasync.local`;
 
     try {
       if (isSignUp) {
