@@ -1,4 +1,5 @@
 
+// App.tsx - Main entry point for VenueIQ
 import React, { useState, useEffect } from 'react';
 import {
   PlusCircle,

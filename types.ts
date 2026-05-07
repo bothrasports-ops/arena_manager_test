@@ -1,4 +1,5 @@
 
+// types.ts - Core types for VenueIQ
 export interface BookingPlatform {
   id: string;
   name: string;
@@ -119,6 +120,7 @@ export enum UserRole {
 export enum MembershipPlan {
   MONTHLY = 'Monthly',
   QUARTERLY = 'Quarterly',
+  YEARLY = 'Yearly',
 }
 
 export interface MembershipSchedule {
@@ -144,6 +146,19 @@ export interface Member {
   sport: Sport;
 }
 
+export interface Student {
+  id: string;
+  venueId: string;
+  studentName: string;
+  phoneNumber: string;
+  coachingFee: number;
+  startDate: string;
+  endDate: string;
+  schedule: MembershipSchedule;
+  status: 'active' | 'expired';
+  sport: Sport;
+}
+
 export interface AppState {
   user: { id: string; email?: string } | null;
   profile: UserProfile | null;
@@ -151,6 +166,7 @@ export interface AppState {
   inventory: DrinkInventoryItem[];
   posSales: PosSale[];
   members: Member[];
+  students: Student[];
   platforms: BookingPlatform[];
   courts: Court[];
   membershipPlans: MembershipPlanDefinition[];
