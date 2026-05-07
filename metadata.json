@@ -1,5 +1,5 @@
 {
-  "name": "Rallyy Venue Manager",
-  "description": "A comprehensive multi-platform sports booking management tool with dynamic inventory, extra hours tracking, and automated financial calculations.",
+  "name": "VenueIQ",
+  "description": "A comprehensive PWA-enabled sports booking manager with multi-sport support, dynamic inventory tracking, and advanced dashboard analytics.",
   "requestFramePermissions": []
 }
