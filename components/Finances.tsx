@@ -15,7 +15,7 @@ import {
 import {
     TrendingUp,
     IndianRupee,
-    Trophy,
+    Zap,
     Smartphone,
     ShoppingBag,
     Calendar,
