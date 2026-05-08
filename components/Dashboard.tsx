@@ -9,12 +9,17 @@ import {
   ShoppingBag,
   ChevronDown,
   Clock,
-  Trophy,
+  Hexagon,
   Coins,
   CreditCard,
-  GraduationCap
+  GraduationCap,
+  Download,
+  FileText,
+  Table as TableIcon
 } from 'lucide-react';
 import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Member, Student } from '../types';
+import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtils';
+import { toast } from 'sonner';
 
 interface DashboardProps {
   bookings: Booking[];
@@ -189,11 +194,57 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
     };
   }, [bookings, inventory, posSales, members, students, timeRange, sportFilter]);
 
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const handleExport = (format: 'csv' | 'excel' | 'pdf') => {
+    const fileName = `VenueIQ_Dashboard_${stats.rangeLabel}_${new Date().toISOString().split('T')[0]}`;
+
+    // Prepare data for export
+    const summaryData = [{
+      Category: 'Overall',
+      Label: stats.rangeLabel,
+      Subtitle: stats.rangeSubtitle,
+      Total_Revenue: stats.totalRevenue,
+      Estimated_Profit: stats.totalProfit,
+      Drinks_Sold: stats.totalDrinksSold,
+      Total_Bookings: stats.bookingCount,
+      Active_Members: stats.activeMembers,
+      Active_Students: stats.activeStudents,
+      Court_Revenue: stats.totalBookingRevenue,
+      Membership_Revenue: stats.totalMembershipRevenue,
+      Coaching_Revenue: stats.totalCoachingRevenue,
+      Drink_Revenue: stats.totalDrinkRevenue
+    }];
+
+    const breakdownData = stats.salesBreakdown.map(item => ({
+      Item_Name: item.name,
+      Quantity: item.quantity,
+      Revenue: item.revenue,
+      Cost: item.cost,
+      Profit: item.revenue - item.cost
+    }));
+
+    // Combine or use specific for formats
+    const fullData = [...summaryData, ...breakdownData];
+
+    try {
+      if (format === 'csv') exportToCSV(fullData, fileName);
+      else if (format === 'excel') exportToExcel(fullData, fileName);
+      else if (format === 'pdf') exportToPDF(fullData, fileName, `VenueIQ Dashboard - ${stats.rangeLabel}`);
+
+      toast.success(`Report exported as ${format.toUpperCase()}`);
+      setShowExportMenu(false);
+    } catch (error) {
+      toast.error('Failed to export report');
+      console.error(error);
+    }
+  };
+
   return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
         {/* Filters Selector */}
         <div className="flex flex-col md:flex-row items-center gap-4">
-          <div className="flex-1 w-full flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex-1 w-full flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm relative">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
                 <Clock className="w-5 h-5 text-indigo-600" />
@@ -204,26 +255,64 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
               </div>
             </div>
 
-            <div className="relative group">
-              <select
-                  value={timeRange}
-                  onChange={(e) => setTimeRange(e.target.value as TimeRange)}
-                  className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
-              >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="yearly">Yearly</option>
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-100 transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export</span>
+                </button>
+
+                {showExportMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                      <button
+                          onClick={() => handleExport('csv')}
+                          className="w-full px-4 py-2 text-left text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-3"
+                      >
+                        <FileText className="w-4 h-4" />
+                        CSV Report
+                      </button>
+                      <button
+                          onClick={() => handleExport('excel')}
+                          className="w-full px-4 py-2 text-left text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-3"
+                      >
+                        <TableIcon className="w-4 h-4 text-emerald-600" />
+                        Excel Spreadsheet
+                      </button>
+                      <button
+                          onClick={() => handleExport('pdf')}
+                          className="w-full px-4 py-2 text-left text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-3"
+                      >
+                        <FileText className="w-4 h-4 text-rose-600" />
+                        PDF Document
+                      </button>
+                    </div>
+                )}
+              </div>
+
+              <div className="relative group">
+                <select
+                    value={timeRange}
+                    onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+                    className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+              </div>
             </div>
           </div>
 
           <div className="flex-1 w-full flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center border border-amber-100">
-                <Trophy className="w-5 h-5 text-amber-600" />
+                <Hexagon className="w-5 h-5 text-amber-600" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Sport Filter</h3>

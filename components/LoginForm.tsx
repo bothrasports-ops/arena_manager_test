@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Trophy, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Building2, CheckCircle2, Loader2 } from 'lucide-react';
+import { Zap, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Building2, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { Sport } from '../types';
@@ -74,12 +74,16 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
   return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12">
         <div className="max-w-md w-full animate-in fade-in zoom-in-95 duration-700">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-600 rounded-3xl shadow-2xl shadow-indigo-200 mb-6 rotate-3">
-              <Trophy className="text-white w-10 h-10" />
+          <div className="text-center mb-10">
+            <div className="relative inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[2rem] shadow-2xl shadow-indigo-200 mb-6 rotate-3 group overflow-hidden">
+              <Zap className="text-white w-12 h-12 fill-white/20 relative z-10 group-hover:scale-110 transition-transform duration-500" />
+              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <Sparkles className="absolute top-2 right-2 w-5 h-5 text-indigo-200 animate-pulse" />
             </div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">VenueIQ</h1>
-            <p className="text-slate-500 font-medium mt-2 italic">Pro Venue Management</p>
+            <p className="text-slate-500 font-medium mt-2 italic flex items-center justify-center gap-2">
+              Intelligence for Modern Venues
+            </p>
           </div>
 
           <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200">

@@ -13,7 +13,8 @@ import {
   Layers,
   Loader2,
   AlertCircle,
-  Trophy,
+  Zap,
+  Hexagon,
   ChevronDown,
   IdCard,
   GraduationCap,
@@ -214,7 +215,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
                             : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
                     }`}
                 >
-                  <Trophy className="w-4 h-4" />
+                  <Zap className="w-4 h-4 fill-indigo-600/10" />
                   {type}
                 </button>
             ))}
@@ -270,7 +271,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Sport</label>
                   <div className="relative">
-                    <Trophy className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <Hexagon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                     <select
                         value={sport}
                         onChange={(e) => setSport(e.target.value as Sport)}
