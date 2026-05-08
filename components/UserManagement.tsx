@@ -17,7 +17,7 @@ import { supabase } from '../lib/supabase';
 
 interface UserManagementProps {
     currentProfile: UserProfile | null;
-    onUpdate: () => void;
+    onUpdate: () => void |Promise<void>;
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdate }) => {

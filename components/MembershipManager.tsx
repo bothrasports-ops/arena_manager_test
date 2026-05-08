@@ -25,7 +25,7 @@ import { supabase } from '../lib/supabase';
 interface MembershipManagerProps {
     members: Member[];
     plans: MembershipPlanDefinition[];
-    onUpdate: () => void;
+    onUpdate: () => void | Promise<void>;
     venueId?: string;
     availableSports: Sport[];
 }

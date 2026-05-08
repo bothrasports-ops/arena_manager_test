@@ -33,7 +33,7 @@ interface BookingListProps {
   courts: Court[];
   onDelete?: (id: string) => void;
   isAdmin?: boolean;
-  onUpdate?: () => void;
+  onUpdate?: () => void | Promise<void>;
   venueName?: string;
   venueEmail?: string;
 }

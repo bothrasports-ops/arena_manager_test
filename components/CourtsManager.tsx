@@ -18,7 +18,7 @@ import { supabase } from '../lib/supabase';
 interface CourtsManagerProps {
     courts: Court[];
     bookings: Booking[];
-    onUpdate: () => void;
+    onUpdate: () => void | Promise<void>;
     venueId?: string;
     isAdmin: boolean;
     onBookSlot?: (courtId: string, time: string, date: string) => void;
