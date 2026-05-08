@@ -18,7 +18,7 @@ import {
   Table as TableIcon
 } from 'lucide-react';
 import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Member, Student } from '../types';
-import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtils';
+import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtil';
 import { toast } from 'sonner';
 
 interface DashboardProps {
