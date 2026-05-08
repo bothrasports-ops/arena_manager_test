@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arenasync-v1';
+const CACHE_NAME = 'venueiq-v1';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',

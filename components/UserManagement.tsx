@@ -17,7 +17,7 @@ import { supabase } from '../lib/supabase';
 
 interface UserManagementProps {
     currentProfile: UserProfile | null;
-    onUpdate: () => void |Promise<void>;
+    onUpdate: () => void | Promise<void>;
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdate }) => {
@@ -155,7 +155,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     required
-                                    placeholder="staff@arenasync.com"
+                                    placeholder="staff@venueiq.com"
                                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                                 />
                             </div>

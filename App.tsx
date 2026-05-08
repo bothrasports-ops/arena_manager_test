@@ -148,7 +148,7 @@ const App: React.FC = () => {
           id: row.id,
           admin_name: row.admin_name || row.email?.split('@')[0] || 'Staff',
           admin_email: row.email,
-          venue_name: row.venue_name || 'Arena Sync Venue',
+          venue_name: row.venue_name || 'VenueIQ Venue',
           available_sports: row.available_sports || [Sport.PICKLEBALL, Sport.BADMINTON],
           role: (row.role as UserRole) || UserRole.USER,
           venue_id: row.venue_id,
@@ -466,7 +466,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="pt-6 border-t border-slate-100 text-[10px] text-slate-400 uppercase font-bold tracking-widest leading-normal">
-              ArenaSync &bull; Setup Mode<br />
+              VenueIQ &bull; Setup Mode<br />
               (Key fallback removed for security)
             </div>
           </div>
@@ -495,7 +495,7 @@ const App: React.FC = () => {
               <div className="bg-indigo-600 p-1.5 rounded-lg">
                 <Trophy className="text-white w-5 h-5" />
               </div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">ArenaSync</h1>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">VenueIQ</h1>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">

@@ -37,7 +37,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
     const safeAdminName = adminName || '';
     const loginEmail = safeAdminName.includes('@')
         ? safeAdminName.trim().toLowerCase()
-        : `${safeAdminName.toLowerCase().replace(/\s+/g, '')}@arenasync.local`;
+        : `${safeAdminName.toLowerCase().replace(/\s+/g, '')}@venueiq.local`;
 
     try {
       if (isSignUp) {
@@ -78,7 +78,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
             <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-600 rounded-3xl shadow-2xl shadow-indigo-200 mb-6 rotate-3">
               <Trophy className="text-white w-10 h-10" />
             </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">ArenaSync</h1>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">VenueIQ</h1>
             <p className="text-slate-500 font-medium mt-2 italic">Pro Venue Management</p>
           </div>
 

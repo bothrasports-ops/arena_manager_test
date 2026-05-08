@@ -370,7 +370,7 @@ const Inventory: React.FC<InventoryProps> = ({ inventory, bookings, onUpdate, ve
         </div>
 
         <p className="text-center text-slate-400 text-xs pb-12">
-          ArenaSync Enterprise &bull; Inventory Management System
+          VenueIQ Enterprise &bull; Inventory Management System
         </p>
       </div>
   );
