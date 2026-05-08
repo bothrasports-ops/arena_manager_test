@@ -33,7 +33,7 @@ import MembershipManager from './components/MembershipManager';
 import UserManagement from './components/UserManagement';
 import CourtsManager from './components/CourtsManager';
 import MembershipPlanManager from './components/MembershipPlanManager';
-import CoachingManager from './components/CoachingManager';
+import CoachingUI from './components/CoachingUI';
 import Finances from './components/Finances';
 import PlatformManager from './components/PlatformManager';
 import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, Student, UserProfile, Court, MembershipPlanDefinition, BookingPlatform } from './types';
@@ -760,7 +760,7 @@ const App: React.FC = () => {
                         />
                     )}
                     {activeTab === 'coaching' && isAdmin && (
-                        <CoachingManager
+                        <CoachingUI
                             students={appState.students}
                             onUpdate={refreshData}
                             venueId={appState.profile?.venue_id || appState.user?.id}

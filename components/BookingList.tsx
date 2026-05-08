@@ -27,7 +27,7 @@ import InvoiceModal from './InvoiceModal';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
-interface BookingListProps {
+interface BookingListPropsUI {
   bookings: Booking[];
   inventory: DrinkInventoryItem[];
   courts: Court[];
@@ -38,16 +38,16 @@ interface BookingListProps {
   venueEmail?: string;
 }
 
-const BookingList: React.FC<BookingListProps> = ({
-                                                   bookings,
-                                                   inventory,
-                                                   courts,
-                                                   onDelete,
-                                                   isAdmin,
-                                                   onUpdate,
-                                                   venueName,
-                                                   venueEmail
-                                                 }) => {
+const BookingList: React.FC<BookingListPropsUI> = ({
+                                                     bookings,
+                                                     inventory,
+                                                     courts,
+                                                     onDelete,
+                                                     isAdmin,
+                                                     onUpdate,
+                                                     venueName,
+                                                     venueEmail
+                                                   }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [platformFilter, setPlatformFilter] = useState<string>('All');
   const [sportFilter, setSportFilter] = useState<string>('All');
