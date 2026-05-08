@@ -21,9 +21,14 @@ import {
     Calendar,
     Clock,
     ChevronDown,
-    Users
+    Users,
+    Download,
+    FileText,
+    Table as TableIcon
 } from 'lucide-react';
 import { Booking, DrinkInventoryItem, Platform, Sport, PosSale, Member, Student, BookingType } from '../types';
+import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtils';
+import { toast } from 'sonner';
 
 interface FinancesProps {
     bookings: Booking[];
@@ -161,11 +166,69 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
     const activeStudents = students.filter(s => s.status === 'active').length;
     const expiredStudents = students.filter(s => s.status === 'expired').length;
 
+    const [showExportMenu, setShowExportMenu] = useState(false);
+
+    const handleExport = (format: 'csv' | 'excel' | 'pdf') => {
+        const fileName = `VenueIQ_Finances_${timeRange}_${new Date().toISOString().split('T')[0]}`;
+
+        // Revenue Categories
+        const revenueData = revenueBreakdown.map(item => ({
+            Category: item.name,
+            Revenue_Amount: item.value
+        }));
+
+        // Sport Distribution
+        const sportData = bookingsBySport.map(item => ({
+            Sport: item.name,
+            Booking_Count: item.value,
+            Revenue_Contribution: revenueBySport.find(rb => rb.name === item.name)?.value || 0
+        }));
+
+        // Platform Data
+        const platformsExport = platformData.map(item => ({
+            Platform: item.name,
+            Transactions: item.value
+        }));
+
+        // Inventory Data
+        const inventoryExport = inventoryRevenue.map(item => ({
+            Item_Name: item.name,
+            Revenue: item.value
+        }));
+
+        // Combine for generic export or focus on most important
+        const fullReport = [
+            { Section: 'EXECUTIVE SUMMARY', Value: '' },
+            { Section: 'Total Revenue', Value: totalRevenue },
+            { Section: 'Court Bookings Count', Value: totalBookingRevenueCount },
+            { Section: 'Active Memberships', Value: activeMembers },
+            { Section: 'Active Students', Value: activeStudents },
+            { Section: '', Value: '' },
+            { Section: 'REVENUE BREAKDOWN', Value: '' },
+            ...revenueData.map(r => ({ Section: r.Category, Value: r.Revenue_Amount })),
+            { Section: '', Value: '' },
+            { Section: 'SPORT PERFORMANCE', Value: '' },
+            ...sportData.map(s => ({ Section: s.Sport, Value: `Bookings: ${s.Booking_Count}, Revenue: ${s.Revenue_Contribution}` })),
+        ];
+
+        try {
+            if (format === 'csv') exportToCSV(fullReport, fileName);
+            else if (format === 'excel') exportToExcel(fullReport, fileName);
+            else if (format === 'pdf') exportToPDF(fullReport, fileName, `VenueIQ Financial Report - ${timeRange.toUpperCase()}`);
+
+            toast.success(`Financial report exported as ${format.toUpperCase()}`);
+            setShowExportMenu(false);
+        } catch (error) {
+            toast.error('Failed to export report');
+            console.error(error);
+        }
+    };
+
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Time Range Filter */}
             <div className="flex flex-col md:flex-row items-center gap-4">
-                <div className="w-full md:w-1/3 flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="w-full md:w-1/3 flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm relative">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
                             <Clock className="w-5 h-5 text-indigo-600" />
@@ -176,20 +239,58 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
                         </div>
                     </div>
 
-                    <div className="relative group">
-                        <select
-                            value={timeRange}
-                            onChange={(e) => setTimeRange(e.target.value as TimeRange)}
-                            className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
-                        >
-                            <option value="all">Lifetime</option>
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="quarterly">Quarterly</option>
-                            <option value="yearly">Yearly</option>
-                        </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowExportMenu(!showExportMenu)}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-100 transition-all"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span className="hidden sm:inline">Export</span>
+                            </button>
+
+                            {showExportMenu && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                                    <button
+                                        onClick={() => handleExport('csv')}
+                                        className="w-full px-4 py-2 text-left text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-3"
+                                    >
+                                        <FileText className="w-4 h-4" />
+                                        CSV Report
+                                    </button>
+                                    <button
+                                        onClick={() => handleExport('excel')}
+                                        className="w-full px-4 py-2 text-left text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-3"
+                                    >
+                                        <TableIcon className="w-4 h-4 text-emerald-600" />
+                                        Excel Spreadsheet
+                                    </button>
+                                    <button
+                                        onClick={() => handleExport('pdf')}
+                                        className="w-full px-4 py-2 text-left text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-3"
+                                    >
+                                        <FileText className="w-4 h-4 text-rose-600" />
+                                        PDF Document
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="relative group">
+                            <select
+                                value={timeRange}
+                                onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+                                className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
+                            >
+                                <option value="all">Lifetime</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="quarterly">Quarterly</option>
+                                <option value="yearly">Yearly</option>
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -244,7 +345,7 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-4 mb-4">
                         <div className="p-3 bg-amber-50 rounded-xl">
-                            <Trophy className="w-6 h-6 text-amber-600" />
+                            <Zap className="w-6 h-6 text-amber-600" />
                         </div>
                         <div>
                             <p className="text-xs font-bold text-slate-500 uppercase">Coaching</p>
@@ -292,7 +393,7 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
                 {/* Booking Distribution by Sport */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-2 mb-6">
-                        <Trophy className="w-5 h-5 text-indigo-600" />
+                        <Zap className="w-5 h-5 text-indigo-600" />
                         <h3 className="text-lg font-black text-slate-900">Booking Distribution</h3>
                     </div>
                     <div className="h-[300px] w-full">

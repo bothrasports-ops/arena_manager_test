@@ -9,7 +9,6 @@ import {
   LogOut,
   Sparkles,
   Zap,
-  Trophy,
   RefreshCw,
   AlertTriangle,
   ShoppingBag,
@@ -566,7 +565,7 @@ const App: React.FC = () => {
                     {isAdmin && (
                         <DropdownItem
                             onClick={() => setActiveTab('coaching')}
-                            icon={<Trophy className="w-4 h-4" />}
+                            icon={<Zap className="w-4 h-4" />}
                             label="Coaching"
                             active={activeTab === 'coaching'}
                         />
@@ -675,7 +674,7 @@ const App: React.FC = () => {
                   <NavButton
                       active={activeTab === 'coaching'}
                       onClick={() => setActiveTab('coaching')}
-                      icon={<Trophy className="w-5 h-5" />}
+                      icon={<Zap className="w-5 h-5" />}
                       label="Coaching"
                   />
               )}

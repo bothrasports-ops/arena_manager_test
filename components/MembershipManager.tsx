@@ -13,7 +13,7 @@ import {
     CreditCard,
     User as UserIcon,
     Phone,
-    Trophy,
+    Zap,
     Filter,
     IdCard,
     Trash2
@@ -301,7 +301,7 @@ const MembershipManager: React.FC<MembershipManagerProps> = ({ members, plans, o
 
                             <div className="space-y-6">
                                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
-                                    <Trophy className="w-4 h-4 text-indigo-500" />
+                                    <Zap className="w-4 h-4 text-indigo-500" />
                                     2. Sport & Period
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
