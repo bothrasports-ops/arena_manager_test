@@ -22,7 +22,7 @@ import {
   CheckCircle2,
   RefreshCw
 } from 'lucide-react';
-import { Booking, Platform, DrinkInventoryItem, Sport, Court, BookingType, UserRole } from '../types';
+import { Booking, Platform, DrinkInventoryItem, Sport, Court, BookingType, UserRole, PaymentMethod } from '../types';
 import InvoiceModal from './InvoiceModal';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
@@ -57,18 +57,42 @@ const BookingList: React.FC<BookingListPropsUI> = ({
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [completingBookingId, setCompletingBookingId] = useState<string | null>(null);
+  const [finalPaymentMethod, setFinalPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
 
-  const handleMarkCompleted = async (booking: Booking) => {
+  const handleMarkCompleted = async (booking: Booking, fpm?: PaymentMethod) => {
     setIsUpdating(booking.id);
     try {
+      const updates: any = {
+        status: 'completed',
+        final_payment_method: fpm || null
+      };
+
+      // If a final payment method is provided, it means the balance is being paid now
+      if (fpm) {
+        updates.advance_paid = booking.totalAmount;
+        updates.payment_status = 'prepaid';
+      }
+
       const { error } = await supabase
           .from('bookings')
-          .update({ status: 'completed' })
+          .update(updates)
           .eq('id', booking.id);
 
       if (error) throw error;
       toast.success("Booking marked as completed");
-      setInvoiceBooking(booking); // Open invoice
+
+      // If we cleared the balance, update the local object for the invoice modal
+      const updatedBooking = fpm ? {
+        ...booking,
+        status: 'completed' as const,
+        finalPaymentMethod: fpm,
+        advancePaid: booking.totalAmount,
+        paymentStatus: 'prepaid' as const
+      } : { ...booking, status: 'completed' as const };
+
+      setInvoiceBooking(updatedBooking); // Open invoice with updated data
+      setCompletingBookingId(null);
       if (onUpdate) onUpdate();
     } catch (error: any) {
       toast.error(`Failed to complete booking: ${error.message}`);
@@ -258,18 +282,54 @@ const BookingList: React.FC<BookingListPropsUI> = ({
                           </div>
                           <div className="flex items-center gap-2">
                             {booking.status !== 'completed' && (
-                                <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleMarkCompleted(booking);
-                                    }}
-                                    disabled={isUpdating === booking.id}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50"
-                                    title="Mark as Completed"
-                                >
-                                  {isUpdating === booking.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                                  Complete
-                                </button>
+                                <div className="relative">
+                                  {completingBookingId === booking.id ? (
+                                      <div className="absolute right-0 bottom-full mb-2 bg-white p-3 rounded-xl border border-slate-200 shadow-xl z-50 min-w-[200px] animate-in zoom-in-95 duration-200">
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Final Payment Via:</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          {Object.values(PaymentMethod).map(method => (
+                                              <button
+                                                  key={method}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMarkCompleted(booking, method);
+                                                  }}
+                                                  className="px-2 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 transition-all uppercase"
+                                              >
+                                                {method}
+                                              </button>
+                                          ))}
+                                        </div>
+                                        <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setCompletingBookingId(null);
+                                            }}
+                                            className="w-full mt-2 py-1 text-[8px] font-bold text-slate-400 uppercase hover:text-red-500"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                  ) : null}
+
+                                  <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const balance = Math.max(0, booking.totalAmount - (booking.advancePaid || 0));
+                                        if (balance > 0) {
+                                          setCompletingBookingId(booking.id);
+                                        } else {
+                                          handleMarkCompleted(booking);
+                                        }
+                                      }}
+                                      disabled={isUpdating === booking.id}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50"
+                                      title="Mark as Completed"
+                                  >
+                                    {isUpdating === booking.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                    Complete
+                                  </button>
+                                </div>
                             )}
                             <button
                                 onClick={(e) => {
@@ -404,9 +464,14 @@ const BookingList: React.FC<BookingListPropsUI> = ({
 
                               {/* Payment Status */}
                               <div className="bg-indigo-600 p-4 rounded-xl border border-indigo-700 shadow-lg text-white">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <CreditCard className="w-4 h-4 opacity-80" />
-                                  <span className="text-xs font-bold uppercase tracking-widest">{booking.paymentStatus?.replace(/_/g, ' ') || 'Payment'}</span>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <CreditCard className="w-4 h-4 opacity-80" />
+                                    <span className="text-xs font-bold uppercase tracking-widest">{booking.paymentStatus?.replace(/_/g, ' ') || 'Payment'}</span>
+                                  </div>
+                                  {booking.paymentMethod && (
+                                      <span className="text-[10px] font-black bg-white/20 px-2 py-0.5 rounded-md uppercase">{booking.paymentMethod}</span>
+                                  )}
                                 </div>
                                 <div className="flex justify-between items-baseline pt-1">
                                   <span className="text-[10px] opacity-70">Paid</span>
@@ -416,6 +481,12 @@ const BookingList: React.FC<BookingListPropsUI> = ({
                                   <span className="text-[10px] opacity-70">Balance Due</span>
                                   <span className="text-lg font-black text-white">₹{Math.max(0, booking.totalAmount - (booking.advancePaid || 0))}</span>
                                 </div>
+                                {booking.status === 'completed' && booking.finalPaymentMethod && (
+                                    <div className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center text-[10px]">
+                                      <span className="opacity-70 italic font-medium">Final Payment via</span>
+                                      <span className="font-black bg-white/10 px-2 py-0.5 rounded-md uppercase">{booking.finalPaymentMethod}</span>
+                                    </div>
+                                )}
                               </div>
                             </div>
                           </div>

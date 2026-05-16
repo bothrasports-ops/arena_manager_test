@@ -28,7 +28,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                                        inventory,
                                                        courts,
                                                        venueName = 'VenueIQ',
-                                                       venueEmail = 'contact@veneuiq.com'
+                                                       venueEmail = 'contact@venueiq.com'
                                                    }) => {
     if (!isOpen) return null;
 
@@ -228,9 +228,19 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
                             </div>
                             <div className="h-px bg-slate-200 my-2" />
                             <div className="flex justify-between items-center bg-indigo-600 p-4 rounded-xl text-white">
-                                <span className="text-xs font-black uppercase tracking-widest">Total Payable</span>
+                                <div>
+                                    <span className="text-xs font-black uppercase tracking-widest block">Total Payable</span>
+                                    {booking.status === 'completed' && booking.finalPaymentMethod && (
+                                        <span className="text-[10px] opacity-70 italic font-medium">via {booking.finalPaymentMethod}</span>
+                                    )}
+                                </div>
                                 <span className="text-2xl font-black">₹{balanceDue}</span>
                             </div>
+                            {booking.paymentMethod && (
+                                <p className="text-[10px] text-center text-slate-400 italic">
+                                    Advance payment received via {booking.paymentMethod}
+                                </p>
+                            )}
                         </div>
                     </div>
 

@@ -29,6 +29,13 @@ export interface SelectedDrink {
   priceAtTime: number;
 }
 
+export enum PaymentMethod {
+  UPI = 'UPI',
+  CASH = 'Cash',
+  CARD = 'Card',
+  ACCOUNT = 'Account',
+}
+
 export interface Booking {
   id: string;
   customerName: string;
@@ -54,6 +61,8 @@ export interface Booking {
   courtId?: string;
   paymentStatus: 'prepaid' | 'to_be_paid' | 'partially_paid';
   advancePaid: number;
+  paymentMethod?: PaymentMethod;
+  finalPaymentMethod?: PaymentMethod;
   status: 'active' | 'completed';
 }
 

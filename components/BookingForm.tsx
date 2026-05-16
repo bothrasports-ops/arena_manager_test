@@ -19,10 +19,11 @@ import {
   IdCard,
   GraduationCap,
   Users,
-  Smartphone
+  Smartphone,
+  CreditCard
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport, BookingType, Court, MembershipPlanDefinition, BookingPlatform } from '../types';
+import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport, BookingType, Court, MembershipPlanDefinition, BookingPlatform, PaymentMethod } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface BookingFormProps {
@@ -53,6 +54,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
   const [courtId, setCourtId] = useState<string>(initialData?.courtId || courts[0]?.id || '');
   const [paymentStatus, setPaymentStatus] = useState<'prepaid' | 'to_be_paid' | 'partially_paid'>('to_be_paid');
   const [advancePaid, setAdvancePaid] = useState<number | ''>(0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
 
   const getLocalDateString = () => {
     const now = new Date();
@@ -172,6 +174,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
             court_id: courtId || null,
             payment_status: paymentStatus,
             advance_paid: Number(advancePaid) || 0,
+            payment_method: paymentStatus !== 'to_be_paid' ? paymentMethod : null,
             status: 'active'
           })
           .select()
@@ -437,17 +440,40 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
                 </div>
 
                 {(paymentStatus === 'partially_paid' || paymentStatus === 'prepaid') && (
-                    <div className="space-y-1.5 animate-in slide-in-from-top-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase">Advance Collected (₹)</label>
-                      <div className="relative">
-                        <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input
-                            type="number"
-                            min="0"
-                            value={advancePaid}
-                            onChange={(e) => setAdvancePaid(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full pl-10 pr-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-black text-emerald-900"
-                        />
+                    <div className="space-y-4 animate-in slide-in-from-top-2">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Advance Collected (₹)</label>
+                        <div className="relative">
+                          <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input
+                              type="number"
+                              min="0"
+                              value={advancePaid}
+                              onChange={(e) => setAdvancePaid(e.target.value === '' ? '' : Number(e.target.value))}
+                              className="w-full pl-10 pr-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-black text-emerald-900"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Payment Method</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.values(PaymentMethod).map(method => (
+                              <button
+                                  key={method}
+                                  type="button"
+                                  onClick={() => setPaymentMethod(method)}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase transition-all ${
+                                      paymentMethod === method
+                                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                          : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
+                                  }`}
+                              >
+                                <CreditCard className={`w-3.5 h-3.5 ${paymentMethod === method ? 'text-white' : 'text-slate-400'}`} />
+                                {method}
+                              </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                 )}
