@@ -17,7 +17,7 @@ import {
   FileText,
   Table as TableIcon
 } from 'lucide-react';
-import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Member, Student } from '../types';
+import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Member, Student, PaymentMethod } from '../types';
 import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtil';
 import { toast } from 'sonner';
 
@@ -145,6 +145,41 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
 
     const sortedSales = Object.values(drinkSales).sort((a, b) => b.quantity - a.quantity);
 
+    // Calculate revenue by payment method
+    const revenueByMethod: Record<string, number> = {};
+    filteredBookings.forEach(booking => {
+      const method1 = booking.paymentMethod;
+      const method2 = booking.finalPaymentMethod;
+      const advance = Number(booking.advancePaid || 0);
+      const balance = Number(booking.balancePaid || 0);
+
+      if (booking.status === 'completed' && method2) {
+        if (method1 && method1 !== method2) {
+          // Split between two methods
+          const bAmount = balance;
+          const aAmount = advance - bAmount;
+          revenueByMethod[method1] = (revenueByMethod[method1] || 0) + aAmount;
+          revenueByMethod[method2] = (revenueByMethod[method2] || 0) + bAmount;
+        } else {
+          // Single method (either method1 was null or same as method2)
+          const targetMethod = method2 || method1;
+          if (targetMethod) {
+            revenueByMethod[targetMethod] = (revenueByMethod[targetMethod] || 0) + advance;
+          }
+        }
+      } else if (method1) {
+        // Not completed, or completed without method2 (fully prepaid at start)
+        revenueByMethod[method1] = (revenueByMethod[method1] || 0) + advance;
+      }
+    });
+
+    // Add POS sales - assuming POS sales have a payment method (I added it to the type)
+    filteredPosSales.forEach(sale => {
+      if (sale.paymentMethod) {
+        revenueByMethod[sale.paymentMethod] = (revenueByMethod[sale.paymentMethod] || 0) + sale.totalAmount;
+      }
+    });
+
     const rangeLabels: Record<TimeRange, string> = {
       daily: 'Today',
       weekly: 'This Week',
@@ -190,7 +225,8 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       activeMembers,
       expiredMembers,
       activeStudents,
-      expiredStudents
+      expiredStudents,
+      revenueByMethod
     };
   }, [bookings, inventory, posSales, members, students, timeRange, sportFilter]);
 
@@ -366,6 +402,21 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
               icon={<Calendar className="w-6 h-6 text-amber-600" />}
               color="amber"
           />
+        </div>
+
+        {/* Payment Method Breakdown */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Object.values(PaymentMethod).map(method => (
+              <div key={method} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100">
+                    <CreditCard className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{method}</span>
+                </div>
+                <span className="text-sm font-black text-slate-900">₹{(stats.revenueByMethod[method] || 0).toLocaleString()}</span>
+              </div>
+          ))}
         </div>
 
         {/* Revenue Breakdown */}

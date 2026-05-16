@@ -61,6 +61,7 @@ export interface Booking {
   courtId?: string;
   paymentStatus: 'prepaid' | 'to_be_paid' | 'partially_paid';
   advancePaid: number;
+  balancePaid?: number;
   paymentMethod?: PaymentMethod;
   finalPaymentMethod?: PaymentMethod;
   status: 'active' | 'completed';
@@ -96,6 +97,7 @@ export interface PosSale {
   venueId: string;
   totalAmount: number;
   items: PosSaleItem[];
+  paymentMethod?: PaymentMethod;
   createdAt: string;
 }
 

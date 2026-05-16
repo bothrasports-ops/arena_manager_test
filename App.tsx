@@ -37,7 +37,7 @@ import MembershipPlanManager from './components/MembershipPlanManager';
 import CoachingUI from './components/CoachingUI';
 import Finances from './components/Finances';
 import PlatformManager from './components/PlatformManager';
-import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, Student, UserProfile, Court, MembershipPlanDefinition, BookingPlatform } from './types';
+import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, Student, UserProfile, Court, MembershipPlanDefinition, BookingPlatform, PaymentMethod } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const App: React.FC = () => {
@@ -326,6 +326,9 @@ const App: React.FC = () => {
         courtId: b.court_id,
         paymentStatus: b.payment_status || 'to_be_paid',
         advancePaid: b.advance_paid || 0,
+        balancePaid: b.balance_paid || 0,
+        paymentMethod: b.payment_method as PaymentMethod,
+        finalPaymentMethod: b.final_payment_method as PaymentMethod,
         status: b.status || 'active',
         timestamp: new Date(b.created_at).getTime()
       }));
@@ -351,6 +354,7 @@ const App: React.FC = () => {
         venueId: s.venue_id,
         totalAmount: s.total_amount,
         createdAt: s.created_at,
+        paymentMethod: s.payment_method as PaymentMethod,
         items: s.pos_sale_items.map((i: any) => ({
           drinkId: i.drink_id,
           quantity: i.quantity,

@@ -26,7 +26,7 @@ import {
     FileText,
     Table as TableIcon
 } from 'lucide-react';
-import { Booking, DrinkInventoryItem, Platform, Sport, PosSale, Member, Student, BookingType } from '../types';
+import { Booking, DrinkInventoryItem, Platform, Sport, PosSale, Member, Student, BookingType, PaymentMethod } from '../types';
 import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtil';
 import { toast } from 'sonner';
 
@@ -159,6 +159,50 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
 
     const totalBookingRevenueCount = useMemo(() => filteredBookings.filter(b => (b.bookingType || BookingType.COURT) === BookingType.COURT).length, [filteredBookings]);
     const totalRevenue = revenueBreakdown.reduce((sum, item) => sum + item.value, 0);
+
+    // Payment Method Breakdown
+    const paymentMethodRevenue = useMemo(() => {
+        const data: Record<string, number> = {};
+
+        // Initialize with all methods
+        Object.values(PaymentMethod).forEach(method => {
+            data[method] = 0;
+        });
+
+        filteredBookings.forEach(booking => {
+            const method1 = booking.paymentMethod;
+            const method2 = booking.finalPaymentMethod;
+            const advance = Number(booking.advancePaid || 0);
+            const balance = Number(booking.balancePaid || 0);
+
+            if (booking.status === 'completed' && method2) {
+                if (method1 && method1 !== method2) {
+                    // Split between two methods
+                    const bAmount = balance;
+                    const aAmount = advance - bAmount;
+                    data[method1] = (data[method1] || 0) + aAmount;
+                    data[method2] = (data[method2] || 0) + bAmount;
+                } else {
+                    // Single method (either method1 was null or same as method2)
+                    const targetMethod = method2 || method1;
+                    if (targetMethod) {
+                        data[targetMethod] = (data[targetMethod] || 0) + advance;
+                    }
+                }
+            } else if (method1) {
+                // Not completed, or completed without method2 (fully prepaid at start)
+                data[method1] = (data[method1] || 0) + advance;
+            }
+        });
+
+        filteredPosSales.forEach(sale => {
+            if (sale.paymentMethod) {
+                data[sale.paymentMethod] = (data[sale.paymentMethod] || 0) + sale.totalAmount;
+            }
+        });
+
+        return Object.entries(data).map(([name, value]) => ({ name, value }));
+    }, [filteredBookings, filteredPosSales]);
 
     // Active counts
     const activeMembers = members.filter(m => m.status === 'active' || m.status === 'renewal_required').length;
@@ -482,6 +526,37 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
                                 No inventory sales recorded yet
                             </div>
                         )}
+                    </div>
+                </div>
+
+                {/* Payment Method Share */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-6">
+                        <IndianRupee className="w-5 h-5 text-indigo-600" />
+                        <h3 className="text-lg font-black text-slate-900">Revenue by Payment Method</h3>
+                    </div>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={paymentMethodRevenue}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={70}
+                                    outerRadius={90}
+                                    dataKey="value"
+                                >
+                                    {paymentMethodRevenue.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[(index + 1) % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip
+                                    formatter={(value: any) => `₹${Number(value || 0).toLocaleString()}`}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                />
+                                <Legend iconType="circle" />
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
             </div>

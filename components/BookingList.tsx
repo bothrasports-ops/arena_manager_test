@@ -70,6 +70,8 @@ const BookingList: React.FC<BookingListPropsUI> = ({
 
       // If a final payment method is provided, it means the balance is being paid now
       if (fpm) {
+        const balance = Math.max(0, booking.totalAmount - (booking.advancePaid || 0));
+        updates.balance_paid = balance;
         updates.advance_paid = booking.totalAmount;
         updates.payment_status = 'prepaid';
       }
@@ -87,6 +89,7 @@ const BookingList: React.FC<BookingListPropsUI> = ({
         ...booking,
         status: 'completed' as const,
         finalPaymentMethod: fpm,
+        balancePaid: Math.max(0, booking.totalAmount - (booking.advancePaid || 0)),
         advancePaid: booking.totalAmount,
         paymentStatus: 'prepaid' as const
       } : { ...booking, status: 'completed' as const };

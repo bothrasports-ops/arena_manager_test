@@ -7,10 +7,11 @@ import {
   Package,
   CheckCircle2,
   Loader2,
-  X
+  X,
+  CreditCard
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { DrinkInventoryItem, PosSale, PosSaleItem } from '../types';
+import { DrinkInventoryItem, PosSale, PosSaleItem, PaymentMethod } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface DrinkSalesProps {
@@ -23,6 +24,7 @@ interface DrinkSalesProps {
 const DrinkSales: React.FC<DrinkSalesProps> = ({ inventory, sales, onSave, venueId }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedItems, setSelectedItems] = useState<{ [key: string]: number }>({});
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [showHistory, setShowHistory] = useState(false);
 
   const totalAmount = Object.entries(selectedItems).reduce((sum, [id, qty]) => {
@@ -52,7 +54,8 @@ const DrinkSales: React.FC<DrinkSalesProps> = ({ inventory, sales, onSave, venue
           .from('pos_sales')
           .insert({
             venue_id: venueId,
-            total_amount: totalAmount
+            total_amount: totalAmount,
+            payment_method: paymentMethod
           })
           .select()
           .single();
@@ -202,6 +205,27 @@ const DrinkSales: React.FC<DrinkSalesProps> = ({ inventory, sales, onSave, venue
                             <span className="text-2xl font-black text-slate-900">₹{totalAmount}</span>
                           </div>
 
+                          <div className="mb-6 space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Method</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {Object.values(PaymentMethod).map(method => (
+                                  <button
+                                      key={method}
+                                      type="button"
+                                      onClick={() => setPaymentMethod(method)}
+                                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase transition-all ${
+                                          paymentMethod === method
+                                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                              : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
+                                      }`}
+                                  >
+                                    <CreditCard className={`w-3.5 h-3.5 ${paymentMethod === method ? 'text-white' : 'text-slate-400'}`} />
+                                    {method}
+                                  </button>
+                              ))}
+                            </div>
+                          </div>
+
                           <button
                               onClick={handleSubmit}
                               disabled={isSubmitting}
@@ -258,7 +282,12 @@ const DrinkSales: React.FC<DrinkSalesProps> = ({ inventory, sales, onSave, venue
                               </div>
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <span className="font-black text-slate-900">₹{sale.totalAmount}</span>
+                              <div className="flex flex-col items-end">
+                                <span className="font-black text-slate-900">₹{sale.totalAmount}</span>
+                                {sale.paymentMethod && (
+                                    <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{sale.paymentMethod}</span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                       ))
