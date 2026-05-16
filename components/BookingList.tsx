@@ -224,7 +224,7 @@ const BookingList: React.FC<BookingListPropsUI> = ({
                 return (
                     <div
                         key={booking.id}
-                        className={`bg-white rounded-2xl border transition-all overflow-hidden ${
+                        className={`bg-white rounded-2xl border transition-all ${
                             expandedBookingId === booking.id
                                 ? 'border-indigo-400 shadow-lg ring-1 ring-indigo-100'
                                 : booking.status !== 'completed'
@@ -284,8 +284,12 @@ const BookingList: React.FC<BookingListPropsUI> = ({
                             {booking.status !== 'completed' && (
                                 <div className="relative">
                                   {completingBookingId === booking.id ? (
-                                      <div className="absolute right-0 bottom-full mb-2 bg-white p-3 rounded-xl border border-slate-200 shadow-xl z-50 min-w-[200px] animate-in zoom-in-95 duration-200">
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Final Payment Via:</p>
+                                      <div className="absolute right-0 bottom-full mb-2 bg-white p-4 rounded-2xl border border-slate-200 shadow-xl z-50 min-w-[240px] animate-in zoom-in-95 duration-200">
+                                        <div className="flex justify-between items-center mb-3">
+                                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Final Payment</p>
+                                          <span className="text-xs font-black text-indigo-600">₹{Math.max(0, booking.totalAmount - (booking.advancePaid || 0))}</span>
+                                        </div>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-2">Select Payment Method:</p>
                                         <div className="grid grid-cols-2 gap-2">
                                           {Object.values(PaymentMethod).map(method => (
                                               <button
@@ -294,7 +298,7 @@ const BookingList: React.FC<BookingListPropsUI> = ({
                                                     e.stopPropagation();
                                                     handleMarkCompleted(booking, method);
                                                   }}
-                                                  className="px-2 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 transition-all uppercase"
+                                                  className="px-2 py-2 bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold rounded-xl hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all uppercase"
                                               >
                                                 {method}
                                               </button>
@@ -305,7 +309,7 @@ const BookingList: React.FC<BookingListPropsUI> = ({
                                               e.stopPropagation();
                                               setCompletingBookingId(null);
                                             }}
-                                            className="w-full mt-2 py-1 text-[8px] font-bold text-slate-400 uppercase hover:text-red-500"
+                                            className="w-full mt-3 py-1 text-[9px] font-black text-slate-400 uppercase hover:text-red-500 transition-colors"
                                         >
                                           Cancel
                                         </button>

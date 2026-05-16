@@ -13,7 +13,7 @@ import {
     ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Booking, DrinkInventoryItem, Platform, BookingType, Court } from '../types';
+import { Booking, DrinkInventoryItem, Platform, BookingType, Court, PaymentMethod } from '../types';
 import { supabase } from '../lib/supabase';
 import InvoiceModal from './InvoiceModal';
 
@@ -29,6 +29,7 @@ interface ActiveBookingsProps {
 const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, courts, onUpdate, venueName, venueEmail }) => {
     const [now, setNow] = useState(new Date());
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
+    const [completingBookingId, setCompletingBookingId] = useState<string | null>(null);
     const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
     const [extraHoursForm, setExtraHoursForm] = useState<{
         bookingId: string | null;
@@ -167,17 +168,39 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
         }
     };
 
-    const handleMarkCompleted = async (booking: Booking) => {
+    const handleMarkCompleted = async (booking: Booking, fpm?: PaymentMethod) => {
         setIsUpdating(booking.id);
         try {
+            const updates: any = {
+                status: 'completed',
+                final_payment_method: fpm || null
+            };
+
+            // If a final payment method is provided, it means the balance is being paid now
+            if (fpm) {
+                updates.advance_paid = booking.totalAmount;
+                updates.payment_status = 'prepaid';
+            }
+
             const { error } = await supabase
                 .from('bookings')
-                .update({ status: 'completed' })
+                .update(updates)
                 .eq('id', booking.id);
 
             if (error) throw error;
             toast.success("Booking marked as completed");
-            setInvoiceBooking(booking); // Open invoice
+
+            // Update local object for invoice modal
+            const updatedBooking = fpm ? {
+                ...booking,
+                status: 'completed' as const,
+                finalPaymentMethod: fpm,
+                advancePaid: booking.totalAmount,
+                paymentStatus: 'prepaid' as const
+            } : { ...booking, status: 'completed' as const };
+
+            setInvoiceBooking(updatedBooking); // Open invoice
+            setCompletingBookingId(null);
             onUpdate();
         } catch (error: any) {
             toast.error(`Failed to complete booking: ${error.message}`);
@@ -213,7 +236,7 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
                         const balanceDue = Math.max(0, booking.totalAmount - (booking.advancePaid || 0));
 
                         return (
-                            <div key={booking.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row">
+                            <div key={booking.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row">
                                 <div className="p-6 flex-1 border-b md:border-b-0 md:border-r border-slate-100">
                                     <div className="flex items-start justify-between mb-4">
                                         <div>
@@ -417,14 +440,56 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
                                     </div>
 
                                     <div className="mt-auto pt-6 flex flex-col gap-2">
-                                        <button
-                                            disabled={isUpdating === booking.id}
-                                            onClick={() => handleMarkCompleted(booking)}
-                                            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
-                                        >
-                                            {isUpdating === booking.id ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                                            Mark Completed & Print Bill
-                                        </button>
+                                        <div className="relative">
+                                            {completingBookingId === booking.id ? (
+                                                <div className="absolute right-0 bottom-full mb-2 bg-white p-5 rounded-3xl border border-slate-200 shadow-2xl z-50 min-w-[280px] animate-in zoom-in-95 duration-200">
+                                                    <div className="flex justify-between items-center mb-4">
+                                                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Final Settlement</p>
+                                                        <span className="text-sm font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">₹{Math.max(0, booking.totalAmount - (booking.advancePaid || 0))}</span>
+                                                    </div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mb-3">Confirm Payment Via:</p>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {Object.values(PaymentMethod).map(method => (
+                                                            <button
+                                                                key={method}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleMarkCompleted(booking, method);
+                                                                }}
+                                                                className="px-3 py-3 bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-2xl hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all uppercase shadow-sm"
+                                                            >
+                                                                {method}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setCompletingBookingId(null);
+                                                        }}
+                                                        className="w-full mt-4 py-1 text-[10px] font-black text-slate-400 uppercase hover:text-red-500 transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            ) : null}
+
+                                            <button
+                                                disabled={isUpdating === booking.id}
+                                                onClick={() => {
+                                                    const balance = Math.max(0, booking.totalAmount - (booking.advancePaid || 0));
+                                                    if (balance > 0) {
+                                                        setCompletingBookingId(booking.id);
+                                                    } else {
+                                                        handleMarkCompleted(booking);
+                                                    }
+                                                }}
+                                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
+                                            >
+                                                {isUpdating === booking.id ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                                                Mark Completed & Print Bill
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
