@@ -47,6 +47,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
   const [phoneNumber, setPhoneNumber] = useState('');
   const [platform, setPlatform] = useState<Platform>(platforms[0]?.name || 'Offline');
   const [bookingType, setBookingType] = useState<BookingType>(BookingType.COURT);
+  const [conflicts, setConflicts] = useState<any[]>([]);
 
   const initialCourt = initialData?.courtId ? courts.find(c => c.id === initialData.courtId) : null;
 
@@ -137,6 +138,70 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
     return Number(bookingAmount) || 0;
   }, [bookingAmount]);
 
+  const executeBookingCreation = async () => {
+    const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          venue_id: venueId,
+          customer_name: customerName,
+          phone_number: phoneNumber,
+          platform: platform,
+          booking_type: bookingType,
+          membership_id: null,
+          coaching_fee: null,
+          sport: sport,
+          booking_date: bookingDate,
+          booking_start_time: bookingType === BookingType.COURT ? bookingStartTime : '10:00',
+          booking_end_time: bookingType === BookingType.COURT ? bookingEndTime : '11:00',
+          total_hours: totalHours,
+          booking_amount: Number(bookingAmount) || 0,
+          extra_hours_enabled: false,
+          extra_hours_duration: 0,
+          extra_hours_amount: 0,
+          total_amount: totalAmount,
+          court_id: courtId || null,
+          payment_status: paymentStatus,
+          advance_paid: Number(advancePaid) || 0,
+          payment_method: paymentStatus !== 'to_be_paid' ? paymentMethod : null,
+          status: 'active'
+        })
+        .select()
+        .single();
+
+    if (bookingError) throw bookingError;
+    if (!bookingData) throw new Error("Booking created but no data returned from database.");
+
+    setCustomerName('');
+    setPhoneNumber('');
+    setBookingDate(getLocalDateString());
+    setBookingAmount(0);
+    setAdvancePaid(0);
+    setPaymentStatus('to_be_paid');
+    setConflicts([]);
+    onSave();
+    toast.success("Entry saved successfully!");
+  };
+
+  const handleOverride = async () => {
+    setIsSubmitting(true);
+    try {
+      const conflictIds = conflicts.map(c => c.id);
+      const { error: deleteError } = await supabase
+          .from('bookings')
+          .delete()
+          .in('id', conflictIds);
+
+      if (deleteError) throw deleteError;
+
+      toast.success(`Removed ${conflicts.length} conflicting booking(s).`);
+      await executeBookingCreation();
+    } catch (error: any) {
+      console.error('Error overriding booking:', error);
+      toast.error(error.message || "Failed to override booking.");
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName || !phoneNumber) {
@@ -175,7 +240,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
 
         if (checkError) throw checkError;
 
-        const overlappingBooking = existingBookings?.find((b: any) => {
+        const overlappingBookings = existingBookings?.filter((b: any) => {
           if (b.status === 'cancelled') return false;
 
           const exStart = timeToMinutes(b.booking_start_time);
@@ -183,59 +248,19 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
 
           // Standard overlap check: S1 < E2 and S2 < E1
           return newStart < exEnd && exStart < newEnd;
-        });
+        }) || [];
 
-        if (overlappingBooking) {
-          toast.error(`Slot conflict! This overlaps with ${overlappingBooking.customer_name}'s booking (${overlappingBooking.booking_start_time} - ${overlappingBooking.booking_end_time}).`);
+        if (overlappingBookings.length > 0) {
+          setConflicts(overlappingBookings);
           setIsSubmitting(false);
           return;
         }
       }
 
-      const { data: bookingData, error: bookingError } = await supabase
-          .from('bookings')
-          .insert({
-            venue_id: venueId,
-            customer_name: customerName,
-            phone_number: phoneNumber,
-            platform: platform,
-            booking_type: bookingType,
-            membership_id: null,
-            coaching_fee: null,
-            sport: sport,
-            booking_date: bookingDate,
-            booking_start_time: bookingType === BookingType.COURT ? bookingStartTime : '10:00',
-            booking_end_time: bookingType === BookingType.COURT ? bookingEndTime : '11:00',
-            total_hours: totalHours,
-            booking_amount: Number(bookingAmount) || 0,
-            extra_hours_enabled: false,
-            extra_hours_duration: 0,
-            extra_hours_amount: 0,
-            total_amount: totalAmount,
-            court_id: courtId || null,
-            payment_status: paymentStatus,
-            advance_paid: Number(advancePaid) || 0,
-            payment_method: paymentStatus !== 'to_be_paid' ? paymentMethod : null,
-            status: 'active'
-          })
-          .select()
-          .single();
-
-      if (bookingError) throw bookingError;
-      if (!bookingData) throw new Error("Booking created but no data returned from database.");
-
-      setCustomerName('');
-      setPhoneNumber('');
-      setBookingDate(getLocalDateString());
-      setBookingAmount(0);
-      setAdvancePaid(0);
-      setPaymentStatus('to_be_paid');
-      onSave();
-      toast.success("Entry saved successfully!");
+      await executeBookingCreation();
     } catch (error: any) {
       console.error('Error saving booking:', error);
       toast.error(error.message || "Failed to save booking. Please check your Supabase connection.");
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -579,6 +604,74 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
             </button>
           </div>
         </form>
+
+        {conflicts.length > 0 && (
+            <div id="conflict-modal-overlay" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div id="conflict-modal" className="bg-white max-w-md w-full rounded-3xl p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+                <div className="flex items-start gap-4 mb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0 text-amber-500">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-black text-slate-900">Timing Conflict Detected</h3>
+                    <p className="text-slate-500 text-xs mt-1">
+                      The selected slot overlaps with {conflicts.length === 1 ? 'an existing booking' : `${conflicts.length} existing bookings`}.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 max-h-[180px] overflow-y-auto mb-6 space-y-3">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Conflicting Slot Mappings</span>
+                  {conflicts.map((b, i) => (
+                      <div key={b.id || i} className="flex items-center justify-between text-xs py-2 border-b border-slate-200/50 last:border-0 last:pb-0 first:pt-0">
+                        <div className="space-y-1">
+                          <p className="font-extrabold text-slate-800">{b.customer_name}</p>
+                          <p className="text-slate-400 font-medium text-[10px] flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {b.booking_start_time} - {b.booking_end_time}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100/55 text-indigo-700 text-[9px] font-extrabold rounded lowercase">{b.platform || 'Offline'}</span>
+                        </div>
+                      </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-rose-500 font-bold bg-rose-50 border border-rose-100 rounded-xl p-3 mb-6">
+                  ⚠️ If you choose to **Override**, the conflicting bookings listed above will be permanently deleted and replaced by this new entry.
+                </p>
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                      type="button"
+                      onClick={() => setConflicts([])}
+                      className="px-5 py-3 border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
+                  >
+                    Cancel & Edit
+                  </button>
+                  <button
+                      type="button"
+                      onClick={handleOverride}
+                      disabled={isSubmitting}
+                      className="px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-rose-100 hover:shadow-rose-200 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Overriding...
+                        </>
+                    ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" />
+                          Override
+                        </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+        )}
       </div>
   );
 };
