@@ -151,6 +151,47 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
 
     setIsSubmitting(true);
     try {
+      if (bookingType === BookingType.COURT) {
+        const timeToMinutes = (t: string) => {
+          const [h, m] = t.split(':').map(Number);
+          return h * 60 + m;
+        };
+
+        const newStart = timeToMinutes(bookingStartTime);
+        const newEnd = timeToMinutes(bookingEndTime);
+
+        if (newEnd <= newStart) {
+          toast.error("Booking end time must be after start time.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Query active/completed bookings for this court and date to detect overlapping slots
+        const { data: existingBookings, error: checkError } = await supabase
+            .from('bookings')
+            .select('id, customer_name, booking_start_time, booking_end_time, status')
+            .eq('court_id', courtId)
+            .eq('booking_date', bookingDate);
+
+        if (checkError) throw checkError;
+
+        const overlappingBooking = existingBookings?.find((b: any) => {
+          if (b.status === 'cancelled') return false;
+
+          const exStart = timeToMinutes(b.booking_start_time);
+          const exEnd = timeToMinutes(b.booking_end_time);
+
+          // Standard overlap check: S1 < E2 and S2 < E1
+          return newStart < exEnd && exStart < newEnd;
+        });
+
+        if (overlappingBooking) {
+          toast.error(`Slot conflict! This overlaps with ${overlappingBooking.customer_name}'s booking (${overlappingBooking.booking_start_time} - ${overlappingBooking.booking_end_time}).`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const { data: bookingData, error: bookingError } = await supabase
           .from('bookings')
           .insert({
