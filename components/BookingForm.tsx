@@ -209,6 +209,19 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
       return;
     }
 
+    // Validate phone number: must be exactly 10 digits (ignoring leading country code +91 or 0 prefix)
+    let cleanedNum = phoneNumber.replace(/\D/g, '');
+    if (cleanedNum.startsWith('91') && cleanedNum.length === 12) {
+      cleanedNum = cleanedNum.substring(2);
+    } else if (cleanedNum.startsWith('0') && cleanedNum.length === 11) {
+      cleanedNum = cleanedNum.substring(1);
+    }
+
+    if (cleanedNum.length !== 10) {
+      toast.error("Contact number must be exactly 10 digits.");
+      return;
+    }
+
     if (bookingType === BookingType.COURT && !courtId) {
       toast.error("Please select a court.");
       return;
