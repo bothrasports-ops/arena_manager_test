@@ -26,7 +26,7 @@ import {
     FileText,
     Table as TableIcon
 } from 'lucide-react';
-import { Booking, DrinkInventoryItem, Platform, Sport, PosSale, Member, Student, BookingType, PaymentMethod } from '../types';
+import { Booking, DrinkInventoryItem, Platform, Sport, PosSale, Member, Student, BookingType, PaymentMethod, MembershipPlanDefinition } from '../types';
 import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtil';
 import { toast } from 'sonner';
 
@@ -36,13 +36,14 @@ interface FinancesProps {
     posSales: PosSale[];
     members: Member[];
     students: Student[];
+    membershipPlans: MembershipPlanDefinition[];
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 type TimeRange = 'all' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
-const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, members, students }) => {
+const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, members, students, membershipPlans }) => {
     const [timeRange, setTimeRange] = useState<TimeRange>('all');
 
     const filteredData = useMemo(() => {
@@ -76,11 +77,13 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
 
         const filteredBookings = bookings.filter(b => isInRange(b.timestamp));
         const filteredPosSales = posSales.filter(s => isInRange(s.createdAt));
+        const filteredMembers = members.filter(m => m.startDate ? isInRange(m.startDate) : true);
+        const filteredStudents = students.filter(s => s.startDate ? isInRange(s.startDate) : true);
 
-        return { filteredBookings, filteredPosSales };
-    }, [bookings, posSales, timeRange]);
+        return { filteredBookings, filteredPosSales, filteredMembers, filteredStudents };
+    }, [bookings, posSales, members, students, timeRange]);
 
-    const { filteredBookings, filteredPosSales } = filteredData;
+    const { filteredBookings, filteredPosSales, filteredMembers, filteredStudents } = filteredData;
 
     // 1. Revenue by Sport
     const revenueBySport = useMemo(() => {
@@ -147,6 +150,27 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
             else if (type === BookingType.COACHING) coachingRevenue += b.totalAmount;
         });
 
+        // Add independent Members table revenue
+        filteredMembers.forEach(member => {
+            const planName = member.plan || 'Monthly';
+            const matchedPlan = membershipPlans?.find(p =>
+                p.sport === member.sport &&
+                (p.name?.toLowerCase() === planName.toLowerCase() ||
+                    p.duration?.toLowerCase() === planName.toLowerCase())
+            );
+            const price = matchedPlan ? matchedPlan.price : (
+                planName.toLowerCase() === 'monthly' ? 1500 :
+                    planName.toLowerCase() === 'quarterly' ? 4000 :
+                        planName.toLowerCase() === 'yearly' ? 12000 : 1000
+            );
+            membershipRevenue += price;
+        });
+
+        // Add independent Coaching table revenue
+        filteredStudents.forEach(student => {
+            coachingRevenue += Number(student.coachingFee || 0);
+        });
+
         const drinkRevenue = inventoryRevenue.reduce((sum, item) => sum + item.value, 0);
 
         return [
@@ -155,7 +179,7 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
             { name: 'Coaching', value: coachingRevenue, color: '#f59e0b' },
             { name: 'Drink Sales', value: drinkRevenue, color: '#10b981' }
         ];
-    }, [filteredBookings, inventoryRevenue]);
+    }, [filteredBookings, filteredMembers, filteredStudents, inventoryRevenue, membershipPlans]);
 
     const totalBookingRevenueCount = useMemo(() => filteredBookings.filter(b => (b.bookingType || BookingType.COURT) === BookingType.COURT).length, [filteredBookings]);
     const totalRevenue = revenueBreakdown.reduce((sum, item) => sum + item.value, 0);

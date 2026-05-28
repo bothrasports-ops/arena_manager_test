@@ -710,6 +710,7 @@ const App: React.FC = () => {
                             posSales={appState.posSales}
                             members={appState.members}
                             students={appState.students}
+                            membershipPlans={appState.membershipPlans}
                         />
                     )}
                     {activeTab === 'platforms' && isAdmin && (
@@ -726,6 +727,7 @@ const App: React.FC = () => {
                             posSales={appState.posSales}
                             members={appState.members}
                             students={appState.students}
+                            membershipPlans={appState.membershipPlans}
                         />
                     )}
                     {activeTab === 'active' && (

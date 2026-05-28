@@ -17,7 +17,7 @@ import {
   FileText,
   Table as TableIcon
 } from 'lucide-react';
-import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Member, Student, PaymentMethod } from '../types';
+import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Member, Student, PaymentMethod, MembershipPlanDefinition } from '../types';
 import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtil';
 import { toast } from 'sonner';
 
@@ -27,11 +27,12 @@ interface DashboardProps {
   posSales: PosSale[];
   members: Member[];
   students: Student[];
+  membershipPlans: MembershipPlanDefinition[];
 }
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
-const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, members, students }) => {
+const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, members, students, membershipPlans }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
   const [sportFilter, setSportFilter] = useState<string>('All');
 
@@ -71,9 +72,23 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       return isInRange(booking.timestamp);
     });
 
+    // Filter members based on selected time range and sport
+    const filteredMembers = members.filter(member => {
+      const matchesSport = sportFilter === 'All' || member.sport === sportFilter;
+      if (!matchesSport) return false;
+      return isInRange(member.startDate);
+    });
+
+    // Filter students based on selected time range and sport
+    const filteredStudents = students.filter(student => {
+      const matchesSport = sportFilter === 'All' || student.sport === sportFilter;
+      if (!matchesSport) return false;
+      return isInRange(student.startDate);
+    });
+
     const courtBookingsCount = filteredBookings.filter(b => (b.bookingType || BookingType.COURT) === BookingType.COURT).length;
-    const membershipBookingsCount = filteredBookings.filter(b => b.bookingType === BookingType.MEMBERSHIP).length;
-    const coachingBookingsCount = filteredBookings.filter(b => b.bookingType === BookingType.COACHING).length;
+    const membershipBookingsCount = filteredMembers.length;
+    const coachingBookingsCount = filteredStudents.length;
 
     // Filter POS sales based on time range
     const filteredPosSales = posSales.filter(sale => isInRange(sale.createdAt));
@@ -121,6 +136,27 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
           totalDrinkCost += qty * purchasePrice;
         }
       });
+    });
+
+    // Process Members table revenue
+    filteredMembers.forEach(member => {
+      const planName = member.plan || 'Monthly';
+      const matchedPlan = membershipPlans?.find(p =>
+          p.sport === member.sport &&
+          (p.name?.toLowerCase() === planName.toLowerCase() ||
+              p.duration?.toLowerCase() === planName.toLowerCase())
+      );
+      const price = matchedPlan ? matchedPlan.price : (
+          planName.toLowerCase() === 'monthly' ? 1500 :
+              planName.toLowerCase() === 'quarterly' ? 4000 :
+                  planName.toLowerCase() === 'yearly' ? 12000 : 1000
+      );
+      totalMembershipRevenue += price;
+    });
+
+    // Process Students table revenue
+    filteredStudents.forEach(student => {
+      totalCoachingRevenue += Number(student.coachingFee || 0);
     });
 
     // Process POS Sales
@@ -228,7 +264,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       expiredStudents,
       revenueByMethod
     };
-  }, [bookings, inventory, posSales, members, students, timeRange, sportFilter]);
+  }, [bookings, inventory, posSales, members, students, timeRange, sportFilter, membershipPlans]);
 
   const [showExportMenu, setShowExportMenu] = useState(false);
 
