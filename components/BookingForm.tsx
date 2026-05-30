@@ -52,6 +52,13 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
   const initialCourt = initialData?.courtId ? courts.find(c => c.id === initialData.courtId) : null;
 
   const [sport, setSport] = useState<Sport>(initialCourt?.sport || availableSports[0] || Sport.PICKLEBALL);
+
+  React.useEffect(() => {
+    if (availableSports.length > 0 && !availableSports.includes(sport)) {
+      setSport(availableSports[0]);
+    }
+  }, [availableSports]);
+
   const [courtId, setCourtId] = useState<string>(initialData?.courtId || courts[0]?.id || '');
   const [paymentStatus, setPaymentStatus] = useState<'prepaid' | 'to_be_paid' | 'partially_paid'>('to_be_paid');
   const [advancePaid, setAdvancePaid] = useState<number | ''>(0);

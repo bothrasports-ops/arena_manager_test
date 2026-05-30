@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Plus,
     Trash2,
@@ -18,16 +18,23 @@ interface MembershipPlanManagerProps {
     plans: MembershipPlanDefinition[];
     onUpdate: () => void | Promise<void>;
     venueId?: string;
+    availableSports?: Sport[];
 }
 
-const MembershipPlanManager: React.FC<MembershipPlanManagerProps> = ({ plans, onUpdate, venueId }) => {
+const MembershipPlanManager: React.FC<MembershipPlanManagerProps> = ({ plans, onUpdate, venueId, availableSports = [] }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [newName, setNewName] = useState('');
     const [newPrice, setNewPrice] = useState<number | ''>('');
     const [newDuration, setNewDuration] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
-    const [newSport, setNewSport] = useState<Sport>(Sport.PICKLEBALL);
+    const [newSport, setNewSport] = useState<Sport>(availableSports[0] || Sport.PICKLEBALL);
     const [newDescription, setNewDescription] = useState('');
     const [filterSport, setFilterSport] = useState<Sport | 'All'>('All');
+
+    useEffect(() => {
+        if (availableSports.length > 0 && !availableSports.includes(newSport)) {
+            setNewSport(availableSports[0]);
+        }
+    }, [availableSports]);
 
     const filteredPlans = filterSport === 'All' ? plans : plans.filter(p => p.sport === filterSport);
 
@@ -138,7 +145,7 @@ const MembershipPlanManager: React.FC<MembershipPlanManagerProps> = ({ plans, on
                         onChange={(e) => setNewSport(e.target.value as Sport)}
                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold appearance-none"
                     >
-                        {Object.values(Sport).map(s => (
+                        {(availableSports.length > 0 ? availableSports : Object.values(Sport)).map(s => (
                             <option key={s} value={s}>{s}</option>
                         ))}
                     </select>
@@ -167,7 +174,7 @@ const MembershipPlanManager: React.FC<MembershipPlanManagerProps> = ({ plans, on
             <div className="flex items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <label className="text-xs font-bold text-slate-500 uppercase">Filter by Sport:</label>
                 <div className="flex flex-wrap gap-2">
-                    {['All', ...Object.values(Sport)].map(s => (
+                    {['All', ...(availableSports.length > 0 ? availableSports : Object.values(Sport))].map(s => (
                         <button
                             key={s}
                             onClick={() => setFilterSport(s as any)}

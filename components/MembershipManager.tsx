@@ -40,6 +40,13 @@ const MembershipManager: React.FC<MembershipManagerProps> = ({ members, plans, o
     const [phone, setPhone] = useState('');
     const [membershipId, setMembershipId] = useState('');
     const [sport, setSport] = useState<Sport>(availableSports[0] || Sport.PICKLEBALL);
+
+    React.useEffect(() => {
+        if (availableSports.length > 0 && !availableSports.includes(sport)) {
+            setSport(availableSports[0]);
+        }
+    }, [availableSports]);
+
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState('');
     const [amount, setAmount] = useState<number | ''>('');

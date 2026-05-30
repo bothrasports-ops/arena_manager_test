@@ -34,6 +34,13 @@ const CoachingUI: React.FC<CoachingUIProps> = ({ students, onUpdate, venueId, av
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [sport, setSport] = useState<Sport>(availableSports[0] || Sport.PICKLEBALL);
+
+    React.useEffect(() => {
+        if (availableSports.length > 0 && !availableSports.includes(sport)) {
+            setSport(availableSports[0]);
+        }
+    }, [availableSports]);
+
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(() => {
         const d = new Date();
