@@ -170,6 +170,17 @@ export interface Student {
   sport: Sport;
 }
 
+export interface Expense {
+  id: string;
+  venueId: string;
+  description: string;
+  amount: number;
+  category: string;
+  expenseDate: string;
+  paymentMethod?: PaymentMethod;
+  createdAt: string;
+}
+
 export interface AppState {
   user: { id: string; email?: string; user_metadata?: Record<string, any> } | null;
   profile: UserProfile | null;
@@ -181,4 +192,5 @@ export interface AppState {
   platforms: BookingPlatform[];
   courts: Court[];
   membershipPlans: MembershipPlanDefinition[];
+  expenses: Expense[];
 }
