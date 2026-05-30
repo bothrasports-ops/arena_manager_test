@@ -180,14 +180,15 @@ const App: React.FC = () => {
           }
         }
 
+        const isAdminProfile = (row.role as UserRole) === UserRole.ADMIN;
         profileData = {
-          id: row.id,
+          id: isAdminProfile ? String(appState.user.id) : row.id,
           admin_name: row.admin_name || row.email?.split('@')[0] || 'Staff',
           admin_email: row.email,
           venue_name: row.venue_name || 'VenueIQ Venue',
           available_sports: row.available_sports || [Sport.PICKLEBALL, Sport.BADMINTON],
           role: (row.role as UserRole) || UserRole.USER,
-          venue_id: row.venue_id,
+          venue_id: isAdminProfile ? String(appState.user.id) : row.venue_id,
           parentId: row.parentId
         };
       } else {
