@@ -81,7 +81,7 @@ const App: React.FC = () => {
 
     supabase.auth.getSession().then(({ data: { session } }: any) => {
       if (session?.user) {
-        setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email } }));
+        setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email, user_metadata: session.user.user_metadata } }));
       } else {
         setLoading(false);
       }
@@ -89,7 +89,7 @@ const App: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (session?.user) {
-        setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email } }));
+        setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email, user_metadata: session.user.user_metadata } }));
       } else {
         setAppState(prev => ({ ...prev, user: null, profile: null, bookings: [], inventory: [], posSales: [] }));
         setLoading(false);
@@ -158,16 +158,21 @@ const App: React.FC = () => {
       } else {
         // Fallback or create default profile if it's the first time
         // We explicitly use the auth ID as the profile ID for admins
+        const metadata = appState.user.user_metadata || {};
+        const metaVenueName = metadata.venue_name || 'My Arena';
+        const metaAvailableSports = metadata.available_sports || [Sport.PICKLEBALL, Sport.BADMINTON];
+        const metaAdminName = metadata.admin_name || appState.user.email?.split('@')[0] || 'Admin';
+
         const { data: newProfile, error: createError } = await supabase
             .from('user_profiles')
             .insert({
               id: appState.user.id,
               email: appState.user.email,
               role: UserRole.ADMIN,
-              admin_name: appState.user.email?.split('@')[0] || 'Admin',
-              venue_name: 'My Arena',
+              admin_name: metaAdminName,
+              venue_name: metaVenueName,
               venue_id: appState.user.id, // For admin, venue_id is their own ID
-              available_sports: [Sport.PICKLEBALL, Sport.BADMINTON]
+              available_sports: metaAvailableSports
             })
             .select()
             .single();

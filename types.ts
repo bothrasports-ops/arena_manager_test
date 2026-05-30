@@ -171,7 +171,7 @@ export interface Student {
 }
 
 export interface AppState {
-  user: { id: string; email?: string } | null;
+  user: { id: string; email?: string; user_metadata?: Record<string, any> } | null;
   profile: UserProfile | null;
   bookings: Booking[];
   inventory: DrinkInventoryItem[];

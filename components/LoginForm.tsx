@@ -47,7 +47,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
 
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: loginEmail,
-          password
+          password,
+          options: {
+            data: {
+              venue_name: venueName,
+              available_sports: selectedSports,
+              admin_name: safeAdminName || loginEmail.split('@')[0],
+              admin_email: loginEmail
+            }
+          }
         });
 
         if (authError) throw authError;
