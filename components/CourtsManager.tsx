@@ -46,14 +46,14 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
     const [editName, setEditName] = useState('');
     const [editSport, setEditSport] = useState<Sport>(Sport.PICKLEBALL);
     const [editStartTime, setEditStartTime] = useState('06:00');
-    const [editEndTime, setEditEndTime] = useState('23:00');
+    const [editEndTime, setEditEndTime] = useState('00:00');
 
     const handleStartEdit = (court: Court) => {
         setEditingCourtId(court.id);
         setEditName(court.name);
         setEditSport(court.sport);
         setEditStartTime(court.start_time || '06:00');
-        setEditEndTime(court.end_time || '23:00');
+        setEditEndTime(court.end_time || '00:00');
     };
 
     const handleSaveEdit = async (courtId: string) => {
@@ -104,21 +104,41 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
 
     const isTimeBooked = (courtId: string, time24: string) => {
         const courtBookings = getDayBookings(courtId);
+
+        const timeToVal = (t: string, isEnd: boolean = false) => {
+            const [h, m] = t.split(':').map(Number);
+            let val = h * 60 + m;
+            if (isEnd && val === 0) {
+                val = 1440;
+            }
+            return val;
+        };
+
+        const slotVal = timeToVal(time24);
+
         return courtBookings.find(b => {
-            const start = b.bookingStartTime;
-            const end = b.bookingEndTime;
-            return time24 >= start && time24 < end;
+            const startVal = timeToVal(b.bookingStartTime);
+            const endVal = timeToVal(b.bookingEndTime, true);
+            return slotVal >= startVal && slotVal < endVal;
         });
     };
 
     const renderTimeline = (court: Court) => {
         const slots = [];
         const [startH] = (court.start_time || '06:00').split(':').map(Number);
-        const [endH] = (court.end_time || '23:00').split(':').map(Number);
+        let [endH] = (court.end_time || '23:00').split(':').map(Number);
+
+        // Support 12 AM (00:00) as end of operating day (hour 24)
+        if (endH === 0) {
+            endH = 24;
+        } else if (endH < startH) {
+            endH += 24;
+        }
 
         for (let h = startH; h < endH; h++) {
-            slots.push(`${h.toString().padStart(2, '0')}:00`);
-            slots.push(`${h.toString().padStart(2, '0')}:30`);
+            const displayHour = h % 24;
+            slots.push(`${displayHour.toString().padStart(2, '0')}:00`);
+            slots.push(`${displayHour.toString().padStart(2, '0')}:30`);
         }
 
         return (

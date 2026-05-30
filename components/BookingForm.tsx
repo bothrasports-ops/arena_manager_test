@@ -237,13 +237,17 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
     setIsSubmitting(true);
     try {
       if (bookingType === BookingType.COURT) {
-        const timeToMinutes = (t: string) => {
+        const timeToMinutes = (t: string, isEnd: boolean = false) => {
           const [h, m] = t.split(':').map(Number);
-          return h * 60 + m;
+          let val = h * 60 + m;
+          if (isEnd && val === 0) {
+            val = 1440;
+          }
+          return val;
         };
 
         const newStart = timeToMinutes(bookingStartTime);
-        const newEnd = timeToMinutes(bookingEndTime);
+        const newEnd = timeToMinutes(bookingEndTime, true);
 
         if (newEnd <= newStart) {
           toast.error("Booking end time must be after start time.");
@@ -264,7 +268,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
           if (b.status === 'cancelled') return false;
 
           const exStart = timeToMinutes(b.booking_start_time);
-          const exEnd = timeToMinutes(b.booking_end_time);
+          const exEnd = timeToMinutes(b.booking_end_time, true);
 
           // Standard overlap check: S1 < E2 and S2 < E1
           return newStart < exEnd && exStart < newEnd;
