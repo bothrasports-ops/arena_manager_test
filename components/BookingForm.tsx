@@ -1,912 +1,699 @@
-
-// App.tsx - Main entry point for VenueIQ
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  PlusCircle,
-  List,
+  User,
+  Phone,
+  Globe,
+  IndianRupee,
+  Plus,
+  Trash2,
+  Clock,
+  Calendar,
+  CheckCircle2,
   Package,
-  LayoutDashboard,
-  LogOut,
-  Sparkles,
+  Layers,
+  Loader2,
+  AlertCircle,
   Zap,
-  RefreshCw,
-  AlertTriangle,
-  ShoppingBag,
-  Users,
-  CalendarClock,
-  ShieldCheck,
-  Grid,
-  Menu,
+  Hexagon,
   ChevronDown,
-  PieChart,
-  Globe
+  IdCard,
+  GraduationCap,
+  Users,
+  Smartphone,
+  CreditCard
 } from 'lucide-react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Toaster, toast } from 'sonner';
-import BookingForm from './components/BookingForm';
-import BookingList from './components/BookingList';
-import Inventory from './components/Inventory';
-import Dashboard from './components/Dashboard';
-import LoginForm from './components/LoginForm';
-import DrinkSales from './components/DrinkSales';
-import ActiveBookings from './components/ActiveBookings';
-import MembershipManager from './components/MembershipManager';
-import UserManagement from './components/UserManagement';
-import CourtsManager from './components/CourtsManager';
-import MembershipPlanManager from './components/MembershipPlanManager';
-import CoachingUI from './components/CoachingUI';
-import Finances from './components/Finances';
-import PlatformManager from './components/PlatformManager';
-import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, Student, UserProfile, Court, MembershipPlanDefinition, BookingPlatform, PaymentMethod } from './types';
-import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { toast } from 'sonner';
+import { Booking, Platform, DrinkInventoryItem, SelectedDrink, Sport, BookingType, Court, MembershipPlanDefinition, BookingPlatform, PaymentMethod } from '../types';
+import { supabase } from '../lib/supabase';
 
-const App: React.FC = () => {
-  const isConfigMissing = !isSupabaseConfigured;
-  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'coaching' | 'users' | 'court_manager' | 'plans' | 'finances' | 'platforms'>('active');
-  const [initialBookingData, setInitialBookingData] = useState<{courtId?: string, date?: string, startTime?: string} | null>(null);
+interface BookingFormProps {
+  onSave: () => void;
+  inventory: DrinkInventoryItem[];
+  courts: Court[];
+  membershipPlans: MembershipPlanDefinition[];
+  platforms: BookingPlatform[];
+  venueId?: string;
+  availableSports: Sport[];
+  initialData?: {
+    courtId?: string;
+    date?: string;
+    startTime?: string;
+  };
+}
 
-  const handleBookSlot = (courtId: string, time: string, date: string) => {
-    setInitialBookingData({ courtId, date, startTime: time });
-    setActiveTab('new');
+const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, membershipPlans, platforms, venueId, availableSports, initialData }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [platform, setPlatform] = useState<Platform>(platforms[0]?.name || 'Offline');
+  const [bookingType, setBookingType] = useState<BookingType>(BookingType.COURT);
+  const [conflicts, setConflicts] = useState<any[]>([]);
+
+  const initialCourt = initialData?.courtId ? courts.find(c => c.id === initialData.courtId) : null;
+
+  const [sport, setSport] = useState<Sport>(initialCourt?.sport || availableSports[0] || Sport.PICKLEBALL);
+
+  React.useEffect(() => {
+    if (availableSports.length > 0 && !availableSports.includes(sport)) {
+      setSport(availableSports[0]);
+    }
+  }, [availableSports]);
+
+  const [courtId, setCourtId] = useState<string>(initialData?.courtId || courts[0]?.id || '');
+  const [paymentStatus, setPaymentStatus] = useState<'prepaid' | 'to_be_paid' | 'partially_paid'>('to_be_paid');
+  const [advancePaid, setAdvancePaid] = useState<number | ''>(0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
+
+  const getLocalDateString = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
   };
 
-  // Reset initial booking data when navigating away, but allow entering 'new' tab with data
-  useEffect(() => {
-    if (activeTab !== 'new' && initialBookingData) {
-      setInitialBookingData(null);
-    }
-  }, [activeTab]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'checking'>('checking');
-  const [appState, setAppState] = useState<AppState>({
-    user: null,
-    profile: null,
-    bookings: [],
-    inventory: [],
-    posSales: [],
-    members: [],
-    students: [],
-    courts: [],
-    membershipPlans: [],
-    platforms: []
-  });
+  const [bookingDate, setBookingDate] = useState(initialData?.date || getLocalDateString());
+  const [bookingStartTime, setBookingStartTime] = useState(initialData?.startTime || '10:00');
 
-  // Handle Auth Session
-  useEffect(() => {
-    if (isConfigMissing) {
-      setLoading(false);
+  const getInitialEndTime = (start: string) => {
+    const [h, m] = start.split(':').map(Number);
+    const endH = (h + 1) % 24;
+    return `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  };
+
+  const [bookingEndTime, setBookingEndTime] = useState(getInitialEndTime(initialData?.startTime || '10:00'));
+  const [bookingAmount, setBookingAmount] = useState<number | ''>(0);
+
+  const selectedCourt = useMemo(() => courts.find(c => c.id === courtId), [courts, courtId]);
+
+  const timeSlots = useMemo(() => {
+    const slots = [];
+    let startMin = 0;
+    let endMin = 1440;
+
+    if (selectedCourt?.start_time && selectedCourt?.end_time) {
+      const [sh, sm] = selectedCourt.start_time.split(':').map(Number);
+      const [eh, em] = selectedCourt.end_time.split(':').map(Number);
+      startMin = sh * 60 + sm;
+      endMin = eh * 60 + em;
+
+      if (startMin === endMin) {
+        endMin = startMin + 1440;
+      } else if (endMin < startMin) {
+        endMin += 1440;
+      }
+    }
+
+    for (let totalMin = startMin; totalMin <= endMin; totalMin += 30) {
+      const h = Math.floor(totalMin / 60) % 24;
+      const m = totalMin % 60;
+      const hour24 = h.toString().padStart(2, '0');
+      const minute = m.toString().padStart(2, '0');
+      const time24 = `${hour24}:${minute}`;
+      const period = h >= 12 ? 'PM' : 'AM';
+      const hour12 = h % 12 === 0 ? 12 : h % 12;
+      const display = `${hour12}:${minute} ${period}`;
+      slots.push({ value: time24, label: display });
+    }
+    return slots;
+  }, [selectedCourt]);
+
+  React.useEffect(() => {
+    if (timeSlots.length > 0) {
+      const isValidStart = timeSlots.some(s => s.value === bookingStartTime);
+      if (!isValidStart) setBookingStartTime(timeSlots[0].value);
+
+      const isValidEnd = timeSlots.some(s => s.value === bookingEndTime);
+      if (!isValidEnd && timeSlots.length > 2) setBookingEndTime(timeSlots[2].value);
+      else if (!isValidEnd) setBookingEndTime(timeSlots[timeSlots.length-1].value);
+    }
+  }, [timeSlots, bookingStartTime, bookingEndTime]);
+
+  const calculateHours = (start: string, end: string) => {
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+    let diff = (endH + endM / 60) - (startH + startM / 60);
+    if (diff < 0) diff += 24;
+    return diff;
+  };
+
+  const totalHours = useMemo(() => {
+    if (bookingType !== BookingType.COURT) return 0;
+    return Number(calculateHours(bookingStartTime, bookingEndTime).toFixed(2));
+  }, [bookingStartTime, bookingEndTime, bookingType]);
+
+  const totalAmount = useMemo(() => {
+    return Number(bookingAmount) || 0;
+  }, [bookingAmount]);
+
+  const executeBookingCreation = async () => {
+    const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          venue_id: venueId,
+          customer_name: customerName,
+          phone_number: phoneNumber,
+          platform: platform,
+          booking_type: bookingType,
+          membership_id: null,
+          coaching_fee: null,
+          sport: sport,
+          booking_date: bookingDate,
+          booking_start_time: bookingType === BookingType.COURT ? bookingStartTime : '10:00',
+          booking_end_time: bookingType === BookingType.COURT ? bookingEndTime : '11:00',
+          total_hours: totalHours,
+          booking_amount: Number(bookingAmount) || 0,
+          extra_hours_enabled: false,
+          extra_hours_duration: 0,
+          extra_hours_amount: 0,
+          total_amount: totalAmount,
+          court_id: courtId || null,
+          payment_status: paymentStatus,
+          advance_paid: Number(advancePaid) || 0,
+          payment_method: paymentStatus !== 'to_be_paid' ? paymentMethod : null,
+          status: 'active'
+        })
+        .select()
+        .single();
+
+    if (bookingError) throw bookingError;
+    if (!bookingData) throw new Error("Booking created but no data returned from database.");
+
+    setCustomerName('');
+    setPhoneNumber('');
+    setBookingDate(getLocalDateString());
+    setBookingAmount(0);
+    setAdvancePaid(0);
+    setPaymentStatus('to_be_paid');
+    setConflicts([]);
+    onSave();
+    toast.success("Entry saved successfully!");
+  };
+
+  const handleOverride = async () => {
+    setIsSubmitting(true);
+    try {
+      const conflictIds = conflicts.map(c => c.id);
+      const { error: deleteError } = await supabase
+          .from('bookings')
+          .delete()
+          .in('id', conflictIds);
+
+      if (deleteError) throw deleteError;
+
+      toast.success(`Removed ${conflicts.length} conflicting booking(s).`);
+      await executeBookingCreation();
+    } catch (error: any) {
+      console.error('Error overriding booking:', error);
+      toast.error(error.message || "Failed to override booking.");
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerName || !phoneNumber) {
+      toast.error("Please fill in basic customer details.");
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
-      if (session?.user) {
-        setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email, user_metadata: session.user.user_metadata } }));
-      } else {
-        setLoading(false);
-      }
-    });
+    // Validate phone number: must be exactly 10 digits (ignoring leading country code +91 or 0 prefix)
+    let cleanedNum = phoneNumber.replace(/\D/g, '');
+    if (cleanedNum.startsWith('91') && cleanedNum.length === 12) {
+      cleanedNum = cleanedNum.substring(2);
+    } else if (cleanedNum.startsWith('0') && cleanedNum.length === 11) {
+      cleanedNum = cleanedNum.substring(1);
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      if (session?.user) {
-        setAppState(prev => ({ ...prev, user: { id: session.user.id, email: session.user.email, user_metadata: session.user.user_metadata } }));
-      } else {
-        setAppState(prev => ({ ...prev, user: null, profile: null, bookings: [], inventory: [], posSales: [] }));
-        setLoading(false);
-      }
-    });
+    if (cleanedNum.length !== 10) {
+      toast.error("Contact number must be exactly 10 digits.");
+      return;
+    }
 
-    return () => subscription.unsubscribe();
-  }, []);
+    if (bookingType === BookingType.COURT && !courtId) {
+      toast.error("Please select a court.");
+      return;
+    }
 
-  // Fetch initial data from Supabase
-  const fetchData = async () => {
-    if (!appState.user || isConfigMissing) return;
-
-    setLoading(true);
-    setFetchError(null);
-    setSupabaseStatus('checking');
+    setIsSubmitting(true);
     try {
-      // Test connection with a simple query
-      const { error: pingError } = await supabase.from('inventory').select('id').limit(1);
-      if (pingError) {
-        setSupabaseStatus('error');
-        throw new Error(`Supabase connection failed: ${pingError.message}`);
-      }
-      setSupabaseStatus('connected');
-
-      // Fetch Profile
-      // Check if a profile exists for this email (either pre-created by admin or previous signup)
-      const { data: profileRows, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('email', String(appState.user.email));
-
-      if (profileError) throw profileError;
-
-      let profileData: UserProfile | null = null;
-
-      if (profileRows && profileRows.length > 0) {
-        let row = profileRows[0];
-
-        // IMPORTANT: If the profile was pre-created by an admin, it doesn't have an 'id'
-        // that matches auth.uid() yet (it might have a temporary one or be null).
-        // We update the existing record with the new Auth ID to link them forever.
-        if (row.id !== appState.user.id) {
-          const { data: updatedRow, error: updateError } = await supabase
-              .from('user_profiles')
-              .update({ id: String(appState.user.id) })
-              .eq('email', String(appState.user.email))
-              .select()
-              .single();
-
-          if (!updateError && updatedRow) {
-            row = updatedRow;
-          }
-        }
-
-        // Auto-sync custom sign up details if database row was initialized with defaults
-        const metadata = appState.user.user_metadata || {};
-        const metaVenueName = metadata.venue_name;
-        const metaAdminName = metadata.admin_name;
-        const metaAvailableSports = metadata.available_sports;
-
-        let needsUpdate = false;
-        const updatePayload: Record<string, any> = {};
-
-        if (metaVenueName && (row.venue_name === 'My Arena' || row.venue_name === 'VenueIQ Venue' || !row.venue_name) && row.venue_name !== metaVenueName) {
-          updatePayload.venue_name = metaVenueName;
-          needsUpdate = true;
-        }
-        if (metaAdminName && (row.admin_name === 'Admin' || row.admin_name === row.email?.split('@')[0] || !row.admin_name) && row.admin_name !== metaAdminName) {
-          updatePayload.admin_name = metaAdminName;
-          needsUpdate = true;
-        }
-        if (metaAvailableSports && (!row.available_sports || row.available_sports.length === 0)) {
-          updatePayload.available_sports = metaAvailableSports;
-          needsUpdate = true;
-        }
-
-        if (needsUpdate) {
-          const { data: syncedRow, error: syncError } = await supabase
-              .from('user_profiles')
-              .update(updatePayload)
-              .eq('id', String(appState.user.id))
-              .select()
-              .single();
-
-          if (!syncError && syncedRow) {
-            row = syncedRow;
-          }
-        }
-
-        profileData = {
-          id: row.id,
-          admin_name: row.admin_name || row.email?.split('@')[0] || 'Staff',
-          admin_email: row.email,
-          venue_name: row.venue_name || 'VenueIQ Venue',
-          available_sports: row.available_sports || [Sport.PICKLEBALL, Sport.BADMINTON],
-          role: (row.role as UserRole) || UserRole.USER,
-          venue_id: row.venue_id,
-          parentId: row.parentId
+      if (bookingType === BookingType.COURT) {
+        const timeToMinutes = (t: string) => {
+          const [h, m] = t.split(':').map(Number);
+          return h * 60 + m;
         };
-      } else {
-        // Fallback or create default profile if it's the first time
-        // We explicitly use the auth ID as the profile ID for admins
-        const metadata = appState.user.user_metadata || {};
-        const metaVenueName = metadata.venue_name || 'My Arena';
-        const metaAvailableSports = metadata.available_sports || [Sport.PICKLEBALL, Sport.BADMINTON];
-        const metaAdminName = metadata.admin_name || appState.user.email?.split('@')[0] || 'Admin';
 
-        const { data: newProfile, error: createError } = await supabase
-            .from('user_profiles')
-            .insert({
-              id: appState.user.id,
-              email: appState.user.email,
-              role: UserRole.ADMIN,
-              admin_name: metaAdminName,
-              venue_name: metaVenueName,
-              venue_id: appState.user.id, // For admin, venue_id is their own ID
-              available_sports: metaAvailableSports
-            })
-            .select()
-            .single();
+        const newStart = timeToMinutes(bookingStartTime);
+        const newEnd = timeToMinutes(bookingEndTime);
 
-        if (createError) {
-          console.error("Profile creation error:", createError);
-          throw new Error(`Could not create profile: ${createError.message}`);
+        if (newEnd <= newStart) {
+          toast.error("Booking end time must be after start time.");
+          setIsSubmitting(false);
+          return;
         }
 
-        if (newProfile) {
-          profileData = {
-            id: newProfile.id,
-            admin_name: newProfile.admin_name || 'Admin',
-            admin_email: newProfile.email,
-            venue_name: newProfile.venue_name,
-            available_sports: newProfile.available_sports || [Sport.PICKLEBALL, Sport.BADMINTON],
-            role: UserRole.ADMIN,
-            venue_id: newProfile.venue_id
-          };
-          toast.success("Welcome! Your admin profile has been created.");
+        // Query active/completed bookings for this court and date to detect overlapping slots
+        const { data: existingBookings, error: checkError } = await supabase
+            .from('bookings')
+            .select('id, customer_name, booking_start_time, booking_end_time, status')
+            .eq('court_id', courtId)
+            .eq('booking_date', bookingDate);
+
+        if (checkError) throw checkError;
+
+        const overlappingBookings = existingBookings?.filter((b: any) => {
+          if (b.status === 'cancelled') return false;
+
+          const exStart = timeToMinutes(b.booking_start_time);
+          const exEnd = timeToMinutes(b.booking_end_time);
+
+          // Standard overlap check: S1 < E2 and S2 < E1
+          return newStart < exEnd && exStart < newEnd;
+        }) || [];
+
+        if (overlappingBookings.length > 0) {
+          setConflicts(overlappingBookings);
+          setIsSubmitting(false);
+          return;
         }
       }
 
-      if (!profileData) {
-        throw new Error("No profile data found or created.");
-      }
-
-      // Use the venue ID from the profile for all data fetching
-      // FOR STAFF: profileData.venue_id is the admin's ID (the master venue ID)
-      // FOR ADMIN: profileData.venue_id is their own ID
-      const targetVenueId = profileData.venue_id || profileData.id;
-
-      if (!targetVenueId) {
-        throw new Error("Could not determine your venue association.");
-      }
-
-      console.log("Fetching data for venue:", targetVenueId);
-
-      // 1. Fetch Courts
-      const { data: courtsData, error: courtsError } = await supabase
-          .from('courts')
-          .select('*')
-          .eq('venue_id', targetVenueId);
-
-      if (courtsError) console.error("Error fetching courts:", courtsError);
-
-      // 2. Fetch Membership Plans
-      const { data: plansData, error: plansError } = await supabase
-          .from('membership_plan_definitions')
-          .select('*')
-          .eq('venue_id', targetVenueId);
-
-      if (plansError) console.error("Error fetching plans:", plansError);
-
-      // 3. Fetch Inventory
-      const { data: inventoryData, error: invError } = await supabase
-          .from('inventory')
-          .select('*')
-          .eq('venue_id', targetVenueId)
-          .order('name');
-
-      if (invError) throw invError;
-
-      const mappedInventory: DrinkInventoryItem[] = (inventoryData || []).map((i: any) => ({
-        id: i.id,
-        name: i.name,
-        price: i.price,
-        purchasePrice: i.purchase_price || 0,
-        stockQuantity: i.stock_quantity || 0,
-        imageUrl: i.image_url
-      }));
-
-      // Fetch Members
-      const { data: membersData, error: membersError } = await supabase
-          .from('members')
-          .select('*')
-          .eq('venue_id', targetVenueId);
-
-      if (membersError) throw membersError;
-
-      const mappedMembers: Member[] = (membersData || []).map((m: any) => ({
-        id: m.id,
-        venueId: m.venue_id,
-        customerName: m.customer_name,
-        phoneNumber: m.phone_number,
-        plan: m.plan as any,
-        startDate: m.start_date,
-        endDate: m.end_date,
-        hoursPerDay: m.hours_per_day,
-        status: m.status as any,
-        sport: m.sport as any
-      }));
-
-      // Fetch Coaching Students
-      const { data: studentsData, error: studentsError } = await supabase
-          .from('coaching_students')
-          .select('*')
-          .eq('venue_id', targetVenueId);
-
-      if (studentsError) console.error("Error fetching students:", studentsError);
-
-      const mappedStudents: Student[] = (studentsData || []).map((s: any) => ({
-        id: s.id,
-        venueId: s.venue_id,
-        studentName: s.student_name,
-        phoneNumber: s.phone_number,
-        coachingFee: s.coaching_fee,
-        startDate: s.start_date,
-        endDate: s.end_date,
-        schedule: s.schedule as any,
-        status: s.status as any,
-        sport: s.sport as any
-      }));
-
-      // Fetch Bookings with their related drinks
-      const { data: bookingsData, error: bookError } = await supabase
-          .from('bookings')
-          .select(`
-          *,
-          booking_drinks (
-            drink_id,
-            quantity,
-            price_at_time
-          )
-        `)
-          .eq('venue_id', targetVenueId)
-          .order('created_at', { ascending: false });
-
-      if (bookError) throw bookError;
-
-      const mappedBookings: Booking[] = (bookingsData || []).map((b: any) => ({
-        id: b.id,
-        customerName: b.customer_name,
-        phoneNumber: b.phone_number,
-        platform: b.platform,
-        bookingType: b.booking_type as BookingType || BookingType.COURT,
-        membershipId: b.membership_id,
-        coachingFee: b.coaching_fee,
-        bookingAmount: b.booking_amount,
-        selectedDrinks: b.booking_drinks ? b.booking_drinks.map((d: any) => ({
-          drinkId: d.drink_id,
-          quantity: d.quantity,
-          priceAtTime: d.price_at_time
-        })) : [],
-        extraHours: {
-          enabled: b.extra_hours_enabled,
-          duration: b.extra_hours_duration,
-          amount: b.extra_hours_amount
-        },
-        bookingStartTime: b.booking_start_time,
-        bookingEndTime: b.booking_end_time,
-        bookingDate: b.booking_date,
-        sport: b.sport as Sport,
-        totalHours: b.total_hours,
-        totalAmount: b.total_amount,
-        courtId: b.court_id,
-        paymentStatus: b.payment_status || 'to_be_paid',
-        advancePaid: b.advance_paid || 0,
-        balancePaid: b.balance_paid || 0,
-        paymentMethod: b.payment_method as PaymentMethod,
-        finalPaymentMethod: b.final_payment_method as PaymentMethod,
-        status: b.status || 'active',
-        timestamp: new Date(b.created_at).getTime()
-      }));
-
-      // Fetch POS Sales
-      const { data: posSalesData, error: posError } = await supabase
-          .from('pos_sales')
-          .select(`
-          *,
-          pos_sale_items (
-            drink_id,
-            quantity,
-            price_at_time
-          )
-        `)
-          .eq('venue_id', targetVenueId)
-          .order('created_at', { ascending: false });
-
-      if (posError) throw posError;
-
-      const mappedPosSales: PosSale[] = (posSalesData || []).map((s: any) => ({
-        id: s.id,
-        venueId: s.venue_id,
-        totalAmount: s.total_amount,
-        createdAt: s.created_at,
-        paymentMethod: s.payment_method as PaymentMethod,
-        items: s.pos_sale_items.map((i: any) => ({
-          drinkId: i.drink_id,
-          quantity: i.quantity,
-          priceAtTime: i.price_at_time
-        }))
-      }));
-
-      // Fetch Platforms
-      const { data: platformsData, error: platesError } = await supabase
-          .from('booking_platforms')
-          .select('*')
-          .eq('venue_id', targetVenueId)
-          .order('name');
-
-      if (platesError) console.error("Error fetching platforms:", platesError);
-
-      const mappedPlans: MembershipPlanDefinition[] = (plansData || []).map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        duration: p.duration,
-        sport: p.sport as any,
-        description: p.description,
-        venueId: p.venue_id
-      }));
-
-      setAppState(prev => ({
-        ...prev,
-        profile: profileData,
-        inventory: mappedInventory,
-        bookings: mappedBookings,
-        posSales: mappedPosSales,
-        members: mappedMembers,
-        students: mappedStudents,
-        courts: courtsData || [],
-        membershipPlans: mappedPlans,
-        platforms: platformsData || []
-      }));
+      await executeBookingCreation();
     } catch (error: any) {
-      console.error('Error fetching data from Supabase:', error);
-      setFetchError(error.message || 'Unknown database error');
-    } finally {
-      setLoading(false);
+      console.error('Error saving booking:', error);
+      toast.error(error.message || "Failed to save booking. Please check your Supabase connection.");
+      setIsSubmitting(false);
     }
   };
-
-  useEffect(() => {
-    if (appState.user) {
-      fetchData();
-    }
-  }, [appState.user]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
-  const refreshData = () => fetchData();
-
-  const handleDeleteBooking = async (id: string) => {
-    try {
-      // Delete related drinks first (if not CASCADE)
-      const { error: drinksError } = await supabase
-          .from('booking_drinks')
-          .delete()
-          .eq('booking_id', id);
-
-      if (drinksError) throw drinksError;
-
-      // Delete the booking
-      const { error: bookingError } = await supabase
-          .from('bookings')
-          .delete()
-          .eq('id', id);
-
-      if (bookingError) throw bookingError;
-
-      // Refresh local state
-      setAppState(prev => ({
-        ...prev,
-        bookings: prev.bookings.filter(b => b.id !== id)
-      }));
-
-      toast.success('Booking deleted successfully');
-    } catch (error: any) {
-      console.error('Error deleting booking:', error);
-      toast.error(`Failed to delete booking: ${error.message}`);
-    }
-  };
-
-  const isAdmin = appState.profile?.role === UserRole.ADMIN;
-
-  if (isConfigMissing) {
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-          <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200 p-8 text-center">
-            <div className="w-20 h-20 bg-amber-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
-              <AlertTriangle className="w-10 h-10 text-amber-600" />
-            </div>
-            <h1 className="text-2xl font-black text-slate-900 mb-2">Configuration Required</h1>
-            <p className="text-slate-600 mb-8 text-sm leading-relaxed">
-              Please provide your Supabase credentials in the <strong>Settings</strong> menu (gear icon in the bottom left) to connect to your database.
-            </p>
-
-            <div className="space-y-4 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-8">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Environment Variables</p>
-                <code className="text-xs font-mono text-slate-700 block select-all">VITE_SUPABASE_URL</code>
-                <code className="text-xs font-mono text-slate-700 block select-all">VITE_SUPABASE_ANON_KEY</code>
-              </div>
-              <div className="pt-2 border-t border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Your Project URL</p>
-                <code className="text-[10px] font-mono text-slate-500 break-all select-all">https://uxyhipfvupyrtuntavnw.supabase.co</code>
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-slate-100 text-[10px] text-slate-400 uppercase font-bold tracking-widest leading-normal">
-              VenueIQ &bull; Setup Mode<br />
-              (Key fallback removed for security)
-            </div>
-          </div>
-        </div>
-    );
-  }
-
-  if (loading && !appState.user) {
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-          <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
-        </div>
-    );
-  }
-
-  if (!appState.user) {
-    return <LoginForm onAuthSuccess={fetchData} />;
-  }
 
   return (
-      <div className="min-h-screen bg-slate-50 flex flex-col">
-        <Toaster position="top-right" richColors />
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-          <div className="max-w-[1800px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-2 rounded-xl shadow-lg shadow-indigo-200">
-                <Zap className="text-white w-5 h-5 fill-white/20" />
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="bg-indigo-600 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-white font-bold text-lg">Create New Entry</h2>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-8">
+          <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+            {[BookingType.COURT].map((type) => (
+                <button
+                    key={type}
+                    type="button"
+                    onClick={() => setBookingType(type)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold transition-all ${
+                        bookingType === type
+                            ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100'
+                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+                    }`}
+                >
+                  <Zap className="w-4 h-4 fill-indigo-600/10" />
+                  {type}
+                </button>
+            ))}
+          </div>
+
+          <section className="space-y-4">
+            <h3 className="text-slate-900 font-bold text-sm uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2">
+              <User className="w-4 h-4 text-indigo-500" />
+              1. Customer Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase">
+                  Customer Name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                      required
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      placeholder="e.g. Rahul Sharma"
+                  />
+                </div>
               </div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">VenueIQ</h1>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase">Contact Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                      required
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      placeholder="+91 XXXXX XXXXX"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4 bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
+            <h3 className="text-slate-900 font-bold text-sm uppercase tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
+              <Layers className="w-4 h-4 text-indigo-500" />
+              2. {bookingType} Details
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Sport</label>
+                  <div className="relative">
+                    <Hexagon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <select
+                        value={sport}
+                        onChange={(e) => setSport(e.target.value as Sport)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                    >
+                      {availableSports.length > 0 ? (
+                          availableSports.map(s => (
+                              <option key={s} value={s}>{s}</option>
+                          ))
+                      ) : (
+                          Object.values(Sport).map(s => (
+                              <option key={s} value={s}>{s}</option>
+                          ))
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Select Court</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {courts.filter(c => c.sport === sport).map(court => (
+                        <button
+                            key={court.id}
+                            type="button"
+                            onClick={() => setCourtId(court.id)}
+                            className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                                courtId === court.id
+                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                    : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
+                            }`}
+                        >
+                          {court.name}
+                        </button>
+                    ))}
+                    {courts.filter(c => c.sport === sport).length === 0 && (
+                        <p className="col-span-3 text-[10px] text-slate-400 italic">No courts found for this sport</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input
+                        type="date"
+                        required
+                        value={bookingDate}
+                        onChange={(e) => setBookingDate(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Start Time</label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <select
+                          value={bookingStartTime}
+                          onChange={(e) => {
+                            const newStart = e.target.value;
+                            setBookingStartTime(newStart);
+                            setBookingEndTime(getInitialEndTime(newStart));
+                          }}
+                          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                      >
+                        {timeSlots.map(slot => (
+                            <option key={`start-${slot.value}`} value={slot.value}>{slot.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase">End Time</label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <select
+                          value={bookingEndTime}
+                          onChange={(e) => setBookingEndTime(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-slate-700"
+                      >
+                        {timeSlots.map(slot => (
+                            <option key={`end-${slot.value}`} value={slot.value}>{slot.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Platform</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setPlatform('Offline')}
+                        className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
+                            platform === 'Offline'
+                                ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                                : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                        }`}
+                    >
+                      <User className={`w-5 h-5 ${platform === 'Offline' ? 'text-indigo-600' : 'text-slate-300'}`} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Offline</span>
+                    </button>
+                    {platforms.map(p => (
+                        <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setPlatform(p.name)}
+                            className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
+                                platform === p.name
+                                    ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                                    : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                            }`}
+                        >
+                          <Globe className={`w-5 h-5 ${platform === p.name ? 'text-indigo-600' : 'text-slate-300'}`} />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">{p.name}</span>
+                        </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-1.5 animate-in fade-in">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Booking Amount (₹)</label>
+                  <div className="relative">
+                    <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                        type="number"
+                        min="0"
+                        value={bookingAmount}
+                        onChange={(e) => setBookingAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-slate-900"
+                        placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Payment Status</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {(['to_be_paid', 'partially_paid', 'prepaid'] as const).map(status => (
+                        <button
+                            key={status}
+                            type="button"
+                            onClick={() => setPaymentStatus(status)}
+                            className={`py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all ${
+                                paymentStatus === status
+                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-md'
+                                    : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300'
+                            }`}
+                        >
+                          {status.replace(/_/g, ' ')}
+                        </button>
+                    ))}
+                  </div>
+                </div>
+
+                {(paymentStatus === 'partially_paid' || paymentStatus === 'prepaid') && (
+                    <div className="space-y-4 animate-in slide-in-from-top-2">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Advance Collected (₹)</label>
+                        <div className="relative">
+                          <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input
+                              type="number"
+                              min="0"
+                              value={advancePaid}
+                              onChange={(e) => setAdvancePaid(e.target.value === '' ? '' : Number(e.target.value))}
+                              className="w-full pl-10 pr-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-black text-emerald-900"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Payment Method</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.values(PaymentMethod).map(method => (
+                              <button
+                                  key={method}
+                                  type="button"
+                                  onClick={() => setPaymentMethod(method)}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase transition-all ${
+                                      paymentMethod === method
+                                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                          : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
+                                  }`}
+                              >
+                                <CreditCard className={`w-3.5 h-3.5 ${paymentMethod === method ? 'text-white' : 'text-slate-400'}`} />
+                                {method}
+                              </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                )}
+
+                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50">
+                  <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-3">Summary</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Booking Amount</span>
+                      <span className="font-bold text-slate-700">₹{Number(bookingAmount) || 0}</span>
+                    </div>
+                    {paymentStatus !== 'to_be_paid' && (
+                        <div className="flex justify-between text-emerald-600 font-bold">
+                          <span>Advance Paid</span>
+                          <span>-₹{Number(advancePaid) || 0}</span>
+                        </div>
+                    )}
+                    <div className="pt-2 border-t border-indigo-200 flex justify-between font-black text-slate-900">
+                      <span>Remaining (at start)</span>
+                      <span>₹{Math.max(0, totalAmount - (Number(advancePaid) || 0))}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div className="pt-8 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Hours</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-black text-slate-900 tracking-tighter">{totalHours}</span>
+                  <span className="text-xs font-bold text-slate-500 uppercase">{totalHours === 1 ? 'Hr' : 'Hrs'}</span>
+                </div>
+              </div>
+              <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Total Payable Amount</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-bold text-indigo-600">₹</span>
+                  <span className="text-4xl font-black text-slate-900 tracking-tighter">{totalAmount}</span>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4">
-              <button
-                  onClick={refreshData}
-                  className={`p-2 text-slate-400 hover:text-indigo-600 transition-colors rounded-full hover:bg-indigo-50 ${loading ? 'animate-spin' : ''}`}
-                  title="Refresh Data"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
+            <button
+                type="submit"
+                disabled={isSubmitting}
+                className={`w-full md:w-auto px-12 py-5 bg-indigo-600 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 hover:shadow-indigo-200 active:scale-95 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+            >
+              {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    Syncing Data...
+                  </>
+              ) : (
+                  <>
+                    <CheckCircle2 className="w-6 h-6" />
+                    Complete {bookingType}
+                  </>
+              )}
+            </button>
+          </div>
+        </form>
 
-              {/* Top Menu Dropdown for Secondary Tabs */}
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger asChild>
-                  <button className="flex items-center gap-1 p-2 text-slate-600 hover:text-indigo-600 transition-colors rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200">
-                    <Menu className="w-5 h-5" />
-                    <span className="hidden sm:inline text-sm font-bold">More</span>
-                    <ChevronDown className="w-4 h-4 opacity-50" />
-                  </button>
-                </DropdownMenu.Trigger>
+        {conflicts.length > 0 && (
+            <div id="conflict-modal-overlay" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div id="conflict-modal" className="bg-white max-w-md w-full rounded-3xl p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+                <div className="flex items-start gap-4 mb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0 text-amber-500">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-black text-slate-900">Timing Conflict Detected</h3>
+                    <p className="text-slate-500 text-xs mt-1">
+                      The selected slot overlaps with {conflicts.length === 1 ? 'an existing booking' : `${conflicts.length} existing bookings`}.
+                    </p>
+                  </div>
+                </div>
 
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content
-                      className="min-w-[200px] bg-white rounded-2xl p-2 shadow-2xl border border-slate-200 z-[100] animate-in fade-in zoom-in duration-200"
-                      sideOffset={8}
-                      align="end"
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 max-h-[180px] overflow-y-auto mb-6 space-y-3">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Conflicting Slot Mappings</span>
+                  {conflicts.map((b, i) => (
+                      <div key={b.id || i} className="flex items-center justify-between text-xs py-2 border-b border-slate-200/50 last:border-0 last:pb-0 first:pt-0">
+                        <div className="space-y-1">
+                          <p className="font-extrabold text-slate-800">{b.customer_name}</p>
+                          <p className="text-slate-400 font-medium text-[10px] flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {b.booking_start_time} - {b.booking_end_time}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100/55 text-indigo-700 text-[9px] font-extrabold rounded lowercase">{b.platform || 'Offline'}</span>
+                        </div>
+                      </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-rose-500 font-bold bg-rose-50 border border-rose-100 rounded-xl p-3 mb-6">
+                  ⚠️ If you choose to **Override**, the conflicting bookings listed above will be permanently deleted and replaced by this new entry.
+                </p>
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                      type="button"
+                      onClick={() => setConflicts([])}
+                      className="px-5 py-3 border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
                   >
-                    <DropdownItem
-                        onClick={() => setActiveTab('court_manager')}
-                        icon={<Grid className="w-4 h-4" />}
-                        label="Court Manager"
-                        active={activeTab === 'court_manager'}
-                    />
-                    {isAdmin && (
-                        <DropdownItem
-                            onClick={() => setActiveTab('platforms')}
-                            icon={<Globe className="w-4 h-4" />}
-                            label="Platforms"
-                            active={activeTab === 'platforms'}
-                        />
-                    )}
-                    {isAdmin && (
-                        <DropdownItem
-                            onClick={() => setActiveTab('finances')}
-                            icon={<PieChart className="w-4 h-4" />}
-                            label="Finances"
-                            active={activeTab === 'finances'}
-                        />
-                    )}
-                    {isAdmin && (
-                        <DropdownItem
-                            onClick={() => setActiveTab('dashboard')}
-                            icon={<LayoutDashboard className="w-4 h-4" />}
-                            label="Dashboard"
-                            active={activeTab === 'dashboard'}
-                        />
-                    )}
-                    {isAdmin && (
-                        <DropdownItem
-                            onClick={() => setActiveTab('members')}
-                            icon={<Users className="w-4 h-4" />}
-                            label="Membership"
-                            active={activeTab === 'members'}
-                        />
-                    )}
-                    {isAdmin && (
-                        <DropdownItem
-                            onClick={() => setActiveTab('coaching')}
-                            icon={<Zap className="w-4 h-4" />}
-                            label="Coaching"
-                            active={activeTab === 'coaching'}
-                        />
-                    )}
-                    <DropdownItem
-                        onClick={() => setActiveTab('drinks')}
-                        icon={<ShoppingBag className="w-4 h-4" />}
-                        label="Drinks Sale"
-                        active={activeTab === 'drinks'}
-                    />
-                    {isAdmin && (
+                    Cancel & Edit
+                  </button>
+                  <button
+                      type="button"
+                      onClick={handleOverride}
+                      disabled={isSubmitting}
+                      className="px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-rose-100 hover:shadow-rose-200 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
                         <>
-                          <DropdownMenu.Separator className="h-px bg-slate-100 my-1" />
-                          <DropdownItem
-                              onClick={() => setActiveTab('inventory')}
-                              icon={<Package className="w-4 h-4" />}
-                              label="Inventory"
-                              active={activeTab === 'inventory'}
-                          />
-                          <DropdownItem
-                              onClick={() => setActiveTab('plans')}
-                              icon={<PlusCircle className="w-4 h-4" />}
-                              label="Membership Plans"
-                              active={activeTab === 'plans'}
-                          />
-                          <DropdownItem
-                              onClick={() => setActiveTab('users')}
-                              icon={<ShieldCheck className="w-4 h-4" />}
-                              label="Staff Management"
-                              active={activeTab === 'users'}
-                          />
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Overriding...
+                        </>
+                    ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" />
+                          Override
                         </>
                     )}
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-
-              <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block" />
-
-              <span className="hidden sm:inline text-sm text-slate-500 font-medium">
-              {appState.profile?.venue_name || 'Arena'}
-            </span>
-              <button
-                  onClick={handleLogout}
-                  className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-full hover:bg-red-50"
-                  title="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {fetchError && (
-            <div className="max-w-[1600px] mx-auto w-full px-4 mt-4">
-              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3">
-                <AlertTriangle className="w-5 h-5 shrink-0" />
-                <div>
-                  <p className="text-sm font-bold">Database Sync Error</p>
-                  <p className="text-xs opacity-80">{fetchError}. Please ensure your Supabase tables are created correctly.</p>
+                  </button>
                 </div>
               </div>
             </div>
         )}
-
-        <main className="flex-1 max-w-[1800px] mx-auto w-full px-4 py-8">
-          <div className="flex flex-col lg:flex-row gap-8">
-            <nav className="hidden lg:flex flex-col gap-1 w-64 shrink-0">
-              <NavButton
-                  active={activeTab === 'active'}
-                  onClick={() => setActiveTab('active')}
-                  icon={<CalendarClock className="w-5 h-5" />}
-                  label="Active Bookings"
-              />
-              <NavButton
-                  active={activeTab === 'court_manager'}
-                  onClick={() => setActiveTab('court_manager')}
-                  icon={<Grid className="w-5 h-5" />}
-                  label="Court Manager"
-              />
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'platforms'}
-                      onClick={() => setActiveTab('platforms')}
-                      icon={<Globe className="w-5 h-5" />}
-                      label="Platforms"
-                  />
-              )}
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'finances'}
-                      onClick={() => setActiveTab('finances')}
-                      icon={<PieChart className="w-5 h-5" />}
-                      label="Finances"
-                  />
-              )}
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'members'}
-                      onClick={() => setActiveTab('members')}
-                      icon={<Users className="w-5 h-5" />}
-                      label="Membership"
-                  />
-              )}
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'coaching'}
-                      onClick={() => setActiveTab('coaching')}
-                      icon={<Zap className="w-5 h-5" />}
-                      label="Coaching"
-                  />
-              )}
-              <NavButton
-                  active={activeTab === 'new'}
-                  onClick={() => setActiveTab('new')}
-                  icon={<PlusCircle className="w-5 h-5" />}
-                  label="New Booking"
-              />
-              <NavButton
-                  active={activeTab === 'list'}
-                  onClick={() => setActiveTab('list')}
-                  icon={<List className="w-5 h-5" />}
-                  label="All Bookings"
-              />
-            </nav>
-
-            <div className="flex-1">
-              {loading && activeTab !== 'new' ? (
-                  <div className="flex items-center justify-center py-20">
-                    <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
-                  </div>
-              ) : (
-                  <>
-                    {activeTab === 'finances' && isAdmin && (
-                        <Finances
-                            bookings={appState.bookings}
-                            inventory={appState.inventory}
-                            posSales={appState.posSales}
-                            members={appState.members}
-                            students={appState.students}
-                            membershipPlans={appState.membershipPlans}
-                        />
-                    )}
-                    {activeTab === 'platforms' && isAdmin && (
-                        <PlatformManager
-                            platforms={appState.platforms}
-                            venueId={appState.profile?.venue_id || appState.user?.id || ''}
-                            onRefresh={refreshData}
-                        />
-                    )}
-                    {activeTab === 'dashboard' && isAdmin && (
-                        <Dashboard
-                            bookings={appState.bookings}
-                            inventory={appState.inventory}
-                            posSales={appState.posSales}
-                            members={appState.members}
-                            students={appState.students}
-                            membershipPlans={appState.membershipPlans}
-                        />
-                    )}
-                    {activeTab === 'active' && (
-                        <ActiveBookings
-                            bookings={appState.bookings}
-                            inventory={appState.inventory}
-                            courts={appState.courts}
-                            onUpdate={refreshData}
-                            venueName={appState.profile?.venue_name}
-                            venueEmail={appState.profile?.admin_email}
-                        />
-                    )}
-                    {activeTab === 'court_manager' && (
-                        <CourtsManager
-                            courts={appState.courts}
-                            bookings={appState.bookings}
-                            onUpdate={refreshData}
-                            venueId={appState.profile?.venue_id || appState.user?.id}
-                            isAdmin={isAdmin}
-                            onBookSlot={handleBookSlot}
-                            availableSports={appState.profile?.available_sports || []}
-                        />
-                    )}
-                    {activeTab === 'plans' && isAdmin && (
-                        <MembershipPlanManager
-                            plans={appState.membershipPlans}
-                            onUpdate={refreshData}
-                            venueId={appState.profile?.venue_id || appState.user?.id}
-                            availableSports={appState.profile?.available_sports || []}
-                        />
-                    )}
-                    {activeTab === 'members' && isAdmin && (
-                        <MembershipManager
-                            members={appState.members}
-                            plans={appState.membershipPlans}
-                            onUpdate={refreshData}
-                            venueId={appState.profile?.venue_id || appState.user?.id}
-                            availableSports={appState.profile?.available_sports || []}
-                        />
-                    )}
-                    {activeTab === 'coaching' && isAdmin && (
-                        <CoachingUI
-                            students={appState.students}
-                            onUpdate={refreshData}
-                            venueId={appState.profile?.venue_id || appState.user?.id}
-                            availableSports={appState.profile?.available_sports || []}
-                        />
-                    )}
-                    {activeTab === 'new' && (
-                        <BookingForm
-                            onSave={() => {
-                              setInitialBookingData(null);
-                              refreshData();
-                            }}
-                            inventory={appState.inventory}
-                            courts={appState.courts}
-                            membershipPlans={appState.membershipPlans}
-                            platforms={appState.platforms}
-                            venueId={appState.profile?.venue_id || appState.user?.id}
-                            availableSports={appState.profile?.available_sports || []}
-                            initialData={initialBookingData || undefined}
-                        />
-                    )}
-                    {activeTab === 'list' && (
-                        <BookingList
-                            bookings={appState.bookings}
-                            inventory={appState.inventory}
-                            courts={appState.courts}
-                            onDelete={handleDeleteBooking}
-                            isAdmin={isAdmin}
-                            onUpdate={refreshData}
-                            venueName={appState.profile?.venue_name}
-                            venueEmail={appState.profile?.admin_email}
-                        />
-                    )}
-                    {activeTab === 'inventory' && isAdmin && (
-                        <Inventory
-                            inventory={appState.inventory}
-                            bookings={appState.bookings}
-                            onUpdate={refreshData}
-                            venueId={appState.profile?.venue_id || appState.user?.id}
-                            userRole={appState.profile?.role}
-                        />
-                    )}
-                    {activeTab === 'drinks' && (
-                        <DrinkSales
-                            inventory={appState.inventory}
-                            sales={appState.posSales}
-                            onSave={refreshData}
-                            venueId={appState.profile?.venue_id || appState.user?.id}
-                        />
-                    )}
-                    {activeTab === 'users' && isAdmin && (
-                        <UserManagement
-                            currentProfile={appState.profile}
-                            onUpdate={refreshData}
-                        />
-                    )}
-                  </>
-              )}
-            </div>
-          </div>
-        </main>
-
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around py-2 z-20">
-          <MobileNavButton active={activeTab === 'active'} onClick={() => setActiveTab('active')} icon={<CalendarClock className="w-6 h-6" />} label="Active" />
-          <MobileNavButton active={activeTab === 'court_manager'} onClick={() => setActiveTab('court_manager')} icon={<Grid className="w-6 h-6" />} label="Courts" />
-          <MobileNavButton active={activeTab === 'new'} onClick={() => setActiveTab('new')} icon={<PlusCircle className="w-6 h-6" />} label="New" />
-          <MobileNavButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List className="w-6 h-6" />} label="All" />
-        </nav>
-        <div className="lg:hidden h-16" />
       </div>
   );
 };
 
-interface NavButtonProps { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; }
-const NavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label }) => (
-    <button onClick={onClick} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-      {icon} <span className="font-semibold">{label}</span>
-    </button>
-);
-const MobileNavButton: React.FC<NavButtonProps> = ({ active, onClick, icon, label }) => (
-    <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-colors ${active ? 'text-indigo-600' : 'text-slate-400'}`}>
-      {icon} <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
-    </button>
-);
-
-const DropdownItem: React.FC<NavButtonProps> = ({ active, onClick, icon, label }) => (
-    <DropdownMenu.Item
-        onClick={onClick}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl outline-none cursor-pointer transition-colors ${
-            active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-        }`}
-    >
-      <div className={active ? 'text-indigo-600' : 'text-slate-400'}>
-        {icon}
-      </div>
-      <span className="text-sm font-bold">{label}</span>
-    </DropdownMenu.Item>
-);
-
-export default App;
+export default BookingForm;

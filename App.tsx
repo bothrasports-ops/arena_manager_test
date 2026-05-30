@@ -145,6 +145,41 @@ const App: React.FC = () => {
           }
         }
 
+        // Auto-sync custom sign up details if database row was initialized with defaults
+        const metadata = appState.user.user_metadata || {};
+        const metaVenueName = metadata.venue_name;
+        const metaAdminName = metadata.admin_name;
+        const metaAvailableSports = metadata.available_sports;
+
+        let needsUpdate = false;
+        const updatePayload: Record<string, any> = {};
+
+        if (metaVenueName && (row.venue_name === 'My Arena' || row.venue_name === 'VenueIQ Venue' || !row.venue_name) && row.venue_name !== metaVenueName) {
+          updatePayload.venue_name = metaVenueName;
+          needsUpdate = true;
+        }
+        if (metaAdminName && (row.admin_name === 'Admin' || row.admin_name === row.email?.split('@')[0] || !row.admin_name) && row.admin_name !== metaAdminName) {
+          updatePayload.admin_name = metaAdminName;
+          needsUpdate = true;
+        }
+        if (metaAvailableSports && (!row.available_sports || row.available_sports.length === 0)) {
+          updatePayload.available_sports = metaAvailableSports;
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          const { data: syncedRow, error: syncError } = await supabase
+              .from('user_profiles')
+              .update(updatePayload)
+              .eq('id', String(appState.user.id))
+              .select()
+              .single();
+
+          if (!syncError && syncedRow) {
+            row = syncedRow;
+          }
+        }
+
         profileData = {
           id: row.id,
           admin_name: row.admin_name || row.email?.split('@')[0] || 'Staff',
@@ -753,6 +788,7 @@ const App: React.FC = () => {
                             venueId={appState.profile?.venue_id || appState.user?.id}
                             isAdmin={isAdmin}
                             onBookSlot={handleBookSlot}
+                            availableSports={appState.profile?.available_sports || []}
                         />
                     )}
                     {activeTab === 'plans' && isAdmin && (
@@ -760,6 +796,7 @@ const App: React.FC = () => {
                             plans={appState.membershipPlans}
                             onUpdate={refreshData}
                             venueId={appState.profile?.venue_id || appState.user?.id}
+                            availableSports={appState.profile?.available_sports || []}
                         />
                     )}
                     {activeTab === 'members' && isAdmin && (
