@@ -19,7 +19,8 @@ import {
   Menu,
   ChevronDown,
   PieChart,
-  Globe
+  Globe,
+  TrendingDown
 } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Toaster, toast } from 'sonner';
@@ -36,13 +37,14 @@ import CourtsManager from './components/CourtsManager';
 import MembershipPlanManager from './components/MembershipPlanManager';
 import CoachingUI from './components/CoachingUI';
 import Finances from './components/Finances';
+import ExpensesManager from './components/ExpensesManager';
 import PlatformManager from './components/PlatformManager';
 import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, Student, UserProfile, Court, MembershipPlanDefinition, BookingPlatform, PaymentMethod } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const App: React.FC = () => {
   const isConfigMissing = !isSupabaseConfigured;
-  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'coaching' | 'users' | 'court_manager' | 'plans' | 'finances' | 'platforms'>('active');
+  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'coaching' | 'users' | 'court_manager' | 'plans' | 'finances' | 'platforms' | 'expenses'>('active');
   const [initialBookingData, setInitialBookingData] = useState<{courtId?: string, date?: string, startTime?: string} | null>(null);
 
   const handleBookSlot = (courtId: string, time: string, date: string) => {
@@ -69,7 +71,8 @@ const App: React.FC = () => {
     students: [],
     courts: [],
     membershipPlans: [],
-    platforms: []
+    platforms: [],
+    expenses: []
   });
 
   // Handle Auth Session
@@ -432,6 +435,11 @@ const App: React.FC = () => {
         venueId: p.venue_id
       }));
 
+      // Fetch Expenses from Local Storage for multi-tenant venue partitioning
+      const expensesKey = `venueiq_expenses_${targetVenueId}`;
+      const expensesStr = localStorage.getItem(expensesKey);
+      const mappedExpenses = expensesStr ? JSON.parse(expensesStr) : [];
+
       setAppState(prev => ({
         ...prev,
         profile: profileData,
@@ -442,7 +450,8 @@ const App: React.FC = () => {
         students: mappedStudents,
         courts: courtsData || [],
         membershipPlans: mappedPlans,
-        platforms: platformsData || []
+        platforms: platformsData || [],
+        expenses: mappedExpenses
       }));
     } catch (error: any) {
       console.error('Error fetching data from Supabase:', error);
@@ -463,6 +472,14 @@ const App: React.FC = () => {
   };
 
   const refreshData = () => fetchData();
+
+  const handleSaveExpenses = (updatedExpenses: any[]) => {
+    const venueId = appState.profile?.venue_id || appState.user?.id;
+    if (!venueId) return;
+    const expensesKey = `venueiq_expenses_${venueId}`;
+    localStorage.setItem(expensesKey, JSON.stringify(updatedExpenses));
+    setAppState(prev => ({ ...prev, expenses: updatedExpenses }));
+  };
 
   const handleDeleteBooking = async (id: string) => {
     try {
@@ -603,6 +620,14 @@ const App: React.FC = () => {
                     )}
                     {isAdmin && (
                         <DropdownItem
+                            onClick={() => setActiveTab('expenses')}
+                            icon={<TrendingDown className="w-4 h-4" />}
+                            label="Expenses"
+                            active={activeTab === 'expenses'}
+                        />
+                    )}
+                    {isAdmin && (
+                        <DropdownItem
                             onClick={() => setActiveTab('dashboard')}
                             icon={<LayoutDashboard className="w-4 h-4" />}
                             label="Dashboard"
@@ -719,6 +744,14 @@ const App: React.FC = () => {
               )}
               {isAdmin && (
                   <NavButton
+                      active={activeTab === 'expenses'}
+                      onClick={() => setActiveTab('expenses')}
+                      icon={<TrendingDown className="w-5 h-5" />}
+                      label="Expenses"
+                  />
+              )}
+              {isAdmin && (
+                  <NavButton
                       active={activeTab === 'members'}
                       onClick={() => setActiveTab('members')}
                       icon={<Users className="w-5 h-5" />}
@@ -762,6 +795,7 @@ const App: React.FC = () => {
                             members={appState.members}
                             students={appState.students}
                             membershipPlans={appState.membershipPlans}
+                            expenses={appState.expenses}
                         />
                     )}
                     {activeTab === 'platforms' && isAdmin && (
@@ -779,6 +813,14 @@ const App: React.FC = () => {
                             members={appState.members}
                             students={appState.students}
                             membershipPlans={appState.membershipPlans}
+                            expenses={appState.expenses}
+                        />
+                    )}
+                    {activeTab === 'expenses' && isAdmin && (
+                        <ExpensesManager
+                            expenses={appState.expenses}
+                            onSave={handleSaveExpenses}
+                            venueId={appState.profile?.venue_id || appState.user?.id || ''}
                         />
                     )}
                     {activeTab === 'active' && (

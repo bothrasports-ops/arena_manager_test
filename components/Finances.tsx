@@ -14,6 +14,8 @@ import {
 } from 'recharts';
 import {
     TrendingUp,
+    TrendingDown,
+    Coins,
     IndianRupee,
     Zap,
     Smartphone,
@@ -26,7 +28,7 @@ import {
     FileText,
     Table as TableIcon
 } from 'lucide-react';
-import { Booking, DrinkInventoryItem, Platform, Sport, PosSale, Member, Student, BookingType, PaymentMethod, MembershipPlanDefinition } from '../types';
+import { Booking, DrinkInventoryItem, Platform, Sport, PosSale, Member, Student, BookingType, PaymentMethod, MembershipPlanDefinition, Expense } from '../types';
 import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtil';
 import { toast } from 'sonner';
 
@@ -37,13 +39,14 @@ interface FinancesProps {
     members: Member[];
     students: Student[];
     membershipPlans: MembershipPlanDefinition[];
+    expenses?: Expense[];
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 type TimeRange = 'all' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
-const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, members, students, membershipPlans }) => {
+const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, members, students, membershipPlans, expenses = [] }) => {
     const [timeRange, setTimeRange] = useState<TimeRange>('all');
 
     const filteredData = useMemo(() => {
@@ -79,11 +82,12 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
         const filteredPosSales = posSales.filter(s => isInRange(s.createdAt));
         const filteredMembers = members.filter(m => m.startDate ? isInRange(m.startDate) : true);
         const filteredStudents = students.filter(s => s.startDate ? isInRange(s.startDate) : true);
+        const filteredExpenses = expenses.filter(e => isInRange(e.expenseDate));
 
-        return { filteredBookings, filteredPosSales, filteredMembers, filteredStudents };
-    }, [bookings, posSales, members, students, timeRange]);
+        return { filteredBookings, filteredPosSales, filteredMembers, filteredStudents, filteredExpenses };
+    }, [bookings, posSales, members, students, timeRange, expenses]);
 
-    const { filteredBookings, filteredPosSales, filteredMembers, filteredStudents } = filteredData;
+    const { filteredBookings, filteredPosSales, filteredMembers, filteredStudents, filteredExpenses } = filteredData;
 
     // 1. Revenue by Sport
     const revenueBySport = useMemo(() => {
@@ -184,6 +188,35 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
     const totalBookingRevenueCount = useMemo(() => filteredBookings.filter(b => (b.bookingType || BookingType.COURT) === BookingType.COURT).length, [filteredBookings]);
     const totalRevenue = revenueBreakdown.reduce((sum, item) => sum + item.value, 0);
 
+    const totalExpenses = useMemo(() => {
+        return filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+    }, [filteredExpenses]);
+
+    const totalDrinkCost = useMemo(() => {
+        let cost = 0;
+        filteredBookings.forEach(b => {
+            b.selectedDrinks.forEach(sd => {
+                const item = inventory.find(i => i.id === sd.drinkId);
+                if (item) {
+                    cost += (item.purchasePrice || 0) * Number(sd.quantity || 0);
+                }
+            });
+        });
+        filteredPosSales.forEach(sale => {
+            sale.items.forEach(item => {
+                const invItem = inventory.find(i => i.id === item.drinkId);
+                if (invItem) {
+                    cost += (invItem.purchasePrice || 0) * Number(item.quantity || 0);
+                }
+            });
+        });
+        return cost;
+    }, [filteredBookings, filteredPosSales, inventory]);
+
+    const totalProfit = useMemo(() => {
+        return totalRevenue - totalDrinkCost - totalExpenses;
+    }, [totalRevenue, totalDrinkCost, totalExpenses]);
+
     // Payment Method Breakdown
     const paymentMethodRevenue = useMemo(() => {
         const data: Record<string, number> = {};
@@ -268,6 +301,8 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
         const fullReport = [
             { Section: 'EXECUTIVE SUMMARY', Value: '' },
             { Section: 'Total Revenue', Value: totalRevenue },
+            { Section: 'Total Expenses', Value: totalExpenses },
+            { Section: 'Estimated Net Profit', Value: totalProfit },
             { Section: 'Court Bookings Count', Value: totalBookingRevenueCount },
             { Section: 'Active Memberships', Value: activeMembers },
             { Section: 'Active Students', Value: activeStudents },
@@ -364,8 +399,8 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm col-span-1 md:col-span-1">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-4 mb-4">
                         <div className="p-3 bg-indigo-50 rounded-xl">
                             <IndianRupee className="w-6 h-6 text-indigo-600" />
@@ -377,8 +412,34 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
                     </div>
                     <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold">
                         <TrendingUp className="w-3 h-3" />
-                        <span>Lifetime Performance</span>
+                        <span>Inclusive performance</span>
                     </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 bg-rose-50 rounded-xl">
+                            <TrendingDown className="w-6 h-6 text-rose-600" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 uppercase">Expenses</p>
+                            <p className="text-2xl font-black text-rose-600">₹{totalExpenses.toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <p className="text-[10px] font-black text-rose-500 uppercase">Operational outflow</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-emerald-100 shadow-sm">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 bg-emerald-50 rounded-xl">
+                            <Coins className="w-6 h-6 text-emerald-600" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 uppercase">Net Profit</p>
+                            <p className="text-2xl font-black text-slate-900">₹{totalProfit.toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <p className="text-[10px] font-black text-emerald-600 uppercase">Revenue - Outflows</p>
                 </div>
 
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -400,7 +461,7 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
                             <Users className="w-6 h-6 text-purple-600" />
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase">Memberships</p>
+                            <p className="text-slate-500 text-xs font-bold uppercase">Memberships</p>
                             <p className="text-2xl font-black text-slate-900">{activeMembers}</p>
                         </div>
                     </div>
@@ -416,7 +477,7 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
                             <Zap className="w-6 h-6 text-amber-600" />
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase">Coaching</p>
+                            <p className="text-slate-500 text-xs font-bold uppercase">Coaching</p>
                             <p className="text-2xl font-black text-slate-900">{activeStudents}</p>
                         </div>
                     </div>

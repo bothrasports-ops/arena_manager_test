@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import {
   BarChart3,
   TrendingUp,
+  TrendingDown,
   Package,
   Calendar,
   ArrowUpRight,
@@ -17,7 +18,7 @@ import {
   FileText,
   Table as TableIcon
 } from 'lucide-react';
-import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Member, Student, PaymentMethod, MembershipPlanDefinition } from '../types';
+import { Booking, DrinkInventoryItem, Sport, PosSale, BookingType, Member, Student, PaymentMethod, MembershipPlanDefinition, Expense } from '../types';
 import { exportToCSV, exportToExcel, exportToPDF } from '../lib/exportUtil';
 import { toast } from 'sonner';
 
@@ -28,11 +29,12 @@ interface DashboardProps {
   members: Member[];
   students: Student[];
   membershipPlans: MembershipPlanDefinition[];
+  expenses?: Expense[];
 }
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
-const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, members, students, membershipPlans }) => {
+const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, members, students, membershipPlans, expenses = [] }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
   const [sportFilter, setSportFilter] = useState<string>('All');
 
@@ -232,8 +234,11 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       yearly: `${currentYear}`
     };
 
+    const filteredExpenses = expenses.filter(e => isInRange(e.expenseDate));
+    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e?.amount, 0);
+
     const totalRevenue = totalDrinkRevenue + totalBookingRevenue + totalMembershipRevenue + totalCoachingRevenue;
-    const totalProfit = (totalDrinkRevenue - totalDrinkCost) + totalBookingRevenue + totalMembershipRevenue + totalCoachingRevenue;
+    const totalProfit = (totalDrinkRevenue - totalDrinkCost) + totalBookingRevenue + totalMembershipRevenue + totalCoachingRevenue - totalExpenses;
 
     // Membership Stats
     const activeMembers = members.filter(m => m.status === 'active' || m.status === 'renewal_required').length;
@@ -252,6 +257,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       totalCoachingRevenue,
       totalRevenue,
       totalProfit,
+      totalExpenses,
       salesBreakdown: sortedSales,
       bookingCount: courtBookingsCount,
       membershipTransactionCount: membershipBookingsCount,
@@ -264,7 +270,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       expiredStudents,
       revenueByMethod
     };
-  }, [bookings, inventory, posSales, members, students, timeRange, sportFilter, membershipPlans]);
+  }, [bookings, inventory, posSales, members, students, timeRange, sportFilter, membershipPlans, expenses]);
 
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -277,6 +283,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       Label: stats.rangeLabel,
       Subtitle: stats.rangeSubtitle,
       Total_Revenue: stats.totalRevenue,
+      Total_Expenses: stats.totalExpenses,
       Estimated_Profit: stats.totalProfit,
       Drinks_Sold: stats.totalDrinksSold,
       Total_Bookings: stats.bookingCount,
@@ -409,7 +416,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
         </div>
 
         {/* Header Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <StatCard
               title={`${stats.rangeLabel} Revenue`}
               value={`₹${stats.totalRevenue.toLocaleString()}`}
@@ -418,9 +425,16 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
               color="emerald"
           />
           <StatCard
+              title="Operating Expenses"
+              value={`₹${stats.totalExpenses.toLocaleString()}`}
+              subtitle="Outflow in selected range"
+              icon={<TrendingDown className="w-6 h-6 text-rose-600" />}
+              color="rose"
+          />
+          <StatCard
               title="Estimated Profit"
               value={`₹${stats.totalProfit.toLocaleString()}`}
-              subtitle="Revenue - Cost"
+              subtitle="Revenue - Cost & Expenses"
               icon={<Coins className="w-6 h-6 text-blue-600" />}
               color="indigo"
           />
@@ -562,7 +576,7 @@ interface StatCardProps {
   value: string;
   subtitle: string;
   icon: React.ReactNode;
-  color: 'emerald' | 'indigo' | 'amber';
+  color: 'emerald' | 'indigo' | 'amber' | 'rose';
 }
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color }) => {
@@ -570,6 +584,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color
     emerald: 'bg-emerald-50 border-emerald-100 text-emerald-600',
     indigo: 'bg-indigo-50 border-indigo-100 text-indigo-600',
     amber: 'bg-amber-50 border-amber-100 text-amber-600',
+    rose: 'bg-rose-50 border-rose-100 text-rose-600',
   };
 
   return (
