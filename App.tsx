@@ -116,6 +116,16 @@ const App: React.FC = () => {
       setSupabaseStatus('connected');
 
       // Fetch Profile
+      // Securely invoke the database get_venue_safe RPC beforehand.
+      // This SECURITY DEFINER function reconciles and heals any pre-created user records
+      // with their corresponding authenticating Auth IDs, resolving foreign key reference mismatches.
+      const { data: safeVenueId, error: rpcError } = await supabase.rpc('get_venue_safe');
+      if (rpcError) {
+        console.warn("get_venue_safe RPC warning:", rpcError);
+      } else if (safeVenueId) {
+        console.log("Safe venue initialized or reconciled successfully:", safeVenueId);
+      }
+
       // Check if a profile exists for this email (either pre-created by admin or previous signup)
       const { data: profileRows, error: profileError } = await supabase
           .from('user_profiles')
