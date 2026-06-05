@@ -3,6 +3,7 @@ import {
     Clock,
     ShoppingBag,
     Plus,
+    Minus,
     Trash2,
     Package,
     RefreshCw,
@@ -159,6 +160,61 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
             if (updateBookingError) throw updateBookingError;
 
             toast.success(`Allocated ${drink.name} to ${booking.customerName}`);
+            onUpdate();
+        } catch (error: any) {
+            console.error(error);
+            toast.error(`Update failed: ${error.message}`);
+        } finally {
+            setIsUpdating(null);
+        }
+    };
+
+    const handleRemoveDrink = async (booking: Booking, drinkId: string) => {
+        setIsUpdating(booking.id);
+        try {
+            const drink = inventory.find(d => d.id === drinkId);
+            if (!drink) return;
+
+            const existing = booking.selectedDrinks.find(sd => sd.drinkId === drinkId);
+            if (!existing || Number(existing.quantity || 0) <= 0) return;
+
+            const newQty = (Number(existing.quantity) || 0) - 1;
+
+            if (newQty > 0) {
+                // Update quantity
+                const { error } = await supabase
+                    .from('booking_drinks')
+                    .update({ quantity: newQty })
+                    .eq('booking_id', booking.id)
+                    .eq('drink_id', drinkId);
+                if (error) throw error;
+            } else {
+                // Delete item record
+                const { error } = await supabase
+                    .from('booking_drinks')
+                    .delete()
+                    .eq('booking_id', booking.id)
+                    .eq('drink_id', drinkId);
+                if (error) throw error;
+            }
+
+            // Restore 1 item back to stock
+            const { error: invError } = await supabase
+                .from('inventory')
+                .update({ stock_quantity: drink.stockQuantity + 1 })
+                .eq('id', drinkId);
+            if (invError) throw invError;
+
+            // Update total amount in booking
+            const { error: updateBookingError } = await supabase
+                .from('bookings')
+                .update({
+                    total_amount: Math.max(0, booking.totalAmount - drink.price)
+                })
+                .eq('id', booking.id);
+            if (updateBookingError) throw updateBookingError;
+
+            toast.success(`Removed 1 ${drink.name} from ${booking.customerName}`);
             onUpdate();
         } catch (error: any) {
             console.error(error);
@@ -408,35 +464,66 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
                                     <div className="space-y-4">
                                         <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Allocate Item/Drink</h4>
                                         <div className="grid grid-cols-2 gap-2">
-                                            {inventory.filter(i => i.stockQuantity > 0).slice(0, 4).map(item => {
+                                            {inventory.filter(item => {
+                                                const currentQty = booking.selectedDrinks?.find(sd => sd.drinkId === item.id)?.quantity || 0;
+                                                return item.stockQuantity > 0 || currentQty > 0;
+                                            }).slice(0, 4).map(item => {
                                                 const currentQty = booking.selectedDrinks?.find(sd => sd.drinkId === item.id)?.quantity || 0;
                                                 return (
-                                                    <button
+                                                    <div
                                                         key={item.id}
-                                                        disabled={isUpdating === booking.id}
-                                                        onClick={() => handleAddDrink(booking, item.id)}
-                                                        className="flex items-center gap-2 p-2 bg-white border border-slate-100 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all group group-disabled:opacity-50 relative"
+                                                        className="flex items-center justify-between p-2 bg-white border border-slate-100 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all group relative"
                                                     >
-                                                        <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden text-[10px] text-slate-400">
-                                                            {item.imageUrl ? (
-                                                                <img src={item.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                                            ) : (
-                                                                <Package className="w-4 h-4" />
-                                                            )}
+                                                        <div className="flex items-center gap-2 overflow-hidden flex-1 select-none">
+                                                            <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden text-[10px] text-slate-400">
+                                                                {item.imageUrl ? (
+                                                                    <img src={item.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                                                ) : (
+                                                                    <Package className="w-4 h-4" />
+                                                                )}
+                                                            </div>
+                                                            <div className="text-left overflow-hidden">
+                                                                <p className="text-[10px] font-bold text-slate-900 truncate">{item.name}</p>
+                                                                <p className="text-[9px] text-indigo-500 font-black">₹{item.price}</p>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-left overflow-hidden flex-1">
-                                                            <p className="text-[10px] font-bold text-slate-900 truncate">{item.name}</p>
-                                                            <p className="text-[9px] text-indigo-500 font-black">₹{item.price}</p>
-                                                        </div>
-                                                        <div className="flex flex-col items-center">
+
+                                                        <div className="flex items-center gap-1.5 shrink-0 z-10">
                                                             {currentQty > 0 && (
-                                                                <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[8px] font-black h-5 min-w-5 px-1 flex items-center justify-center rounded-full shadow-lg border-2 border-white">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isUpdating === booking.id}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleRemoveDrink(booking, item.id);
+                                                                    }}
+                                                                    className="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 flex items-center justify-center transition-all disabled:opacity-50"
+                                                                    title="Remove one"
+                                                                >
+                                                                    <Minus className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+
+                                                            {currentQty > 0 && (
+                                                                <span className="text-xs font-black text-slate-700 min-w-[12px] text-center">
                                   {currentQty}
                                 </span>
                                                             )}
-                                                            <Plus className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+
+                                                            <button
+                                                                type="button"
+                                                                disabled={isUpdating === booking.id || item.stockQuantity <= 0}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleAddDrink(booking, item.id);
+                                                                }}
+                                                                className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center justify-center transition-all disabled:opacity-50"
+                                                                title="Add one"
+                                                            >
+                                                                <Plus className="w-3.5 h-3.5" />
+                                                            </button>
                                                         </div>
-                                                    </button>
+                                                    </div>
                                                 );
                                             })}
                                         </div>

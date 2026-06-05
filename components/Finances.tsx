@@ -47,7 +47,7 @@ const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 type TimeRange = 'all' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, members, students, membershipPlans, expenses = [] }) => {
-    const [timeRange, setTimeRange] = useState<TimeRange>('all');
+    const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
 
     const filteredData = useMemo(() => {
         const now = new Date();
@@ -93,7 +93,8 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
     const revenueBySport = useMemo(() => {
         const data: Record<string, number> = {};
         filteredBookings.forEach(b => {
-            data[b.sport] = (data[b.sport] || 0) + b.totalAmount;
+            const amount = Number(b.bookingAmount) + (b.extraHours?.enabled ? Number(b.extraHours.amount) : 0);
+            data[b.sport] = (data[b.sport] || 0) + amount;
         });
         return Object.entries(data).map(([name, value]) => ({ name, value }));
     }, [filteredBookings]);
@@ -149,9 +150,13 @@ const Finances: React.FC<FinancesProps> = ({ bookings, inventory, posSales, memb
 
         filteredBookings.forEach(b => {
             const type = b.bookingType || BookingType.COURT;
-            if (type === BookingType.COURT) courtRevenue += b.totalAmount;
-            else if (type === BookingType.MEMBERSHIP) membershipRevenue += b.totalAmount;
-            else if (type === BookingType.COACHING) coachingRevenue += b.totalAmount;
+            if (type === BookingType.COURT) {
+                courtRevenue += Number(b.bookingAmount) + (b.extraHours?.enabled ? Number(b.extraHours.amount) : 0);
+            } else if (type === BookingType.MEMBERSHIP) {
+                membershipRevenue += Number(b.bookingAmount);
+            } else if (type === BookingType.COACHING) {
+                coachingRevenue += Number(b.coachingFee || b.bookingAmount || 0);
+            }
         });
 
         // Add independent Members table revenue

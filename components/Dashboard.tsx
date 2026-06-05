@@ -32,7 +32,7 @@ interface DashboardProps {
   expenses?: Expense[];
 }
 
-type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+type TimeRange = 'all' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, members, students, membershipPlans, expenses = [] }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
@@ -219,6 +219,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
     });
 
     const rangeLabels: Record<TimeRange, string> = {
+      all: 'Lifetime',
       daily: 'Today',
       weekly: 'This Week',
       monthly: 'This Month',
@@ -227,6 +228,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
     };
 
     const rangeSubtitles: Record<TimeRange, string> = {
+      all: 'All-time performance',
       daily: now.toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' }),
       weekly: `Since ${startOfWeek.toLocaleDateString('default', { day: 'numeric', month: 'short' })}`,
       monthly: now.toLocaleString('default', { month: 'long', year: 'numeric' }),
@@ -377,6 +379,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
                     onChange={(e) => setTimeRange(e.target.value as TimeRange)}
                     className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-4 pr-10 py-2.5 outline-none cursor-pointer hover:bg-slate-100 transition-all"
                 >
+                  <option value="all">Lifetime</option>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
