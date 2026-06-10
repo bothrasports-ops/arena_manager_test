@@ -15,6 +15,7 @@ import {
   Users,
   CalendarClock,
   ShieldCheck,
+  ShieldAlert,
   Grid,
   Menu,
   ChevronDown,
@@ -640,6 +641,33 @@ const App: React.FC = () => {
 
   if (!appState.user) {
     return <LoginForm onAuthSuccess={fetchData} />;
+  }
+
+  if (appState.profile?.role === ('unlinked' as any)) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+          <Toaster position="top-right" richColors />
+          <div className="max-w-md w-full bg-white border border-slate-200 p-8 rounded-3xl shadow-xl text-center space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-slate-900">Access Revoked</h2>
+              <p className="text-slate-500 text-sm leading-relaxed">
+                Your staff account has been deactivated or unlinked from this venue by the administrator.
+                Please contact your administrator if you believe this is an error.
+              </p>
+            </div>
+            <button
+                onClick={handleLogout}
+                className="w-full py-3.5 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-100"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+    );
   }
 
   return (

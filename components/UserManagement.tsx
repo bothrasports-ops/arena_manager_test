@@ -44,15 +44,17 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                 .eq('venue_id', String(targetVenueId));
             if (error) throw error;
 
-            const mapped: UserProfile[] = (data || []).map((row: any) => ({
-                id: row.id,
-                admin_name: row.admin_name || '',
-                admin_email: row.email, // Mapping email to admin_email
-                venue_name: row.venue_name || '',
-                available_sports: row.available_sports || [],
-                role: row.role as UserRole,
-                parentId: row.parentId
-            }));
+            const mapped: UserProfile[] = (data || [])
+                .filter((row: any) => row.role !== 'unlinked' && row.role !== UserRole.UNLINKED)
+                .map((row: any) => ({
+                    id: row.id,
+                    admin_name: row.admin_name || '',
+                    admin_email: row.email, // Mapping email to admin_email
+                    venue_name: row.venue_name || '',
+                    available_sports: row.available_sports || [],
+                    role: row.role as UserRole,
+                    parentId: row.parentId
+                }));
             setProfiles(mapped);
         } catch (error: any) {
             toast.error(`Error loading users: ${error.message}`);
@@ -127,25 +129,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                 .eq('id', id);
 
             if (error) {
-                // Fallback: If deleting the row fails due to foreign key constraints (e.g. platforms constraint to user_profiles),
-                // we can unlink/soft-delete the profile by setting its venue_id to its own ID and setting role to basic 'user'.
-                // This removes them from the admin's venue listing and revokes all rights to access this venue's bookings and sales.
-                console.warn("Hard delete failed due to constraints. Unlinking profile instead:", error.message);
+                // Fallback or Safe Deactivation: If deleting the row fails due to foreign key constraints or RLS delete constraints,
+                // we can deactivate/unlink the profile by setting its role to 'unlinked'. Since its venue_id is unchanged, this update
+                // is fully authorized under the admin's RLS update policy, yet it revokes all system dashboard access.
+                console.warn("Hard delete failed. Setting role to unlinked/deactivated instead:", error.message);
 
                 const { error: updateError } = await supabase
                     .from('user_profiles')
                     .update({
-                        venue_id: id,
-                        role: UserRole.USER,
-                        venue_name: 'Unlinked Arena'
+                        role: UserRole.UNLINKED
                     })
                     .eq('id', id);
 
                 if (updateError) {
-                    throw new Error(`Fallback unlinking also failed: ${updateError.message}`);
+                    throw new Error(`Fallback deactivation also failed: ${updateError.message}`);
                 }
 
-                toast.success("Staff profile unlinked and access revoked successfully.");
+                toast.success("Staff profile unlinked and system access revoked successfully.");
             } else {
                 toast.success("User profile removed");
             }
@@ -207,20 +207,22 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                         <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Assigned Role</label>
                             <div className="grid grid-cols-2 gap-2">
-                                {Object.values(UserRole).map(r => (
-                                    <button
-                                        key={r}
-                                        type="button"
-                                        onClick={() => setRole(r)}
-                                        className={`py-3 px-4 rounded-xl font-bold border transition-all ${
-                                            role === r
-                                                ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500'
-                                                : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
-                                        }`}
-                                    >
-                                        {r}
-                                    </button>
-                                ))}
+                                {Object.values(UserRole)
+                                    .filter(r => r !== UserRole.UNLINKED)
+                                    .map(r => (
+                                        <button
+                                            key={r}
+                                            type="button"
+                                            onClick={() => setRole(r)}
+                                            className={`py-3 px-4 rounded-xl font-bold border transition-all ${
+                                                role === r
+                                                    ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500'
+                                                    : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            {r}
+                                        </button>
+                                    ))}
                             </div>
                         </div>
                         <div className="pt-2">

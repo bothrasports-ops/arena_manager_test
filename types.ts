@@ -126,6 +126,7 @@ export interface UserProfile extends VenueProfile {
 export enum UserRole {
   ADMIN = 'admin',
   USER = 'user',
+  UNLINKED = 'unlinked',
 }
 
 export enum MembershipPlan {
