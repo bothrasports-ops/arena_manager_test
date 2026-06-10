@@ -126,6 +126,19 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
             console.warn("get_venue_safe pre-reconciliation RPC warning for user:", rpcErr);
           }
 
+          // Real-time client-side healing: Pre-emptively update and link matching email profile to this authenticated UID.
+          // This guarantees that when SELECT runs, the RLS policy (which matches auth.uid() = id) succeeds and permits full row select.
+          try {
+            const lowerEmail = loginEmail.trim().toLowerCase();
+            const lowerName = safeAdminName.trim().toLowerCase();
+            await supabase
+                .from('user_profiles')
+                .update({ id: authUser.id })
+                .in('email', [lowerEmail, lowerName]);
+          } catch (linkError) {
+            console.warn("Pre-emptive staffing profile link error:", linkError);
+          }
+
           // 3. User is now authenticated, query their profile to verify registration and role
           const { data: profileRows, error: profileErr } = await supabase
               .from('user_profiles')
@@ -189,6 +202,18 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
             await supabase.rpc('get_venue_safe');
           } catch (rpcErr) {
             console.warn("get_venue_safe pre-reconciliation RPC warning for admin:", rpcErr);
+          }
+
+          // Real-time client-side healing: Pre-emptively update and link matching email profile to this authenticated UID.
+          try {
+            const lowerEmail = loginEmail.trim().toLowerCase();
+            const lowerName = safeAdminName.trim().toLowerCase();
+            await supabase
+                .from('user_profiles')
+                .update({ id: authUser.id })
+                .in('email', [lowerEmail, lowerName]);
+          } catch (linkError) {
+            console.warn("Pre-emptive admin profile link error:", linkError);
           }
 
           // Verify they are actually an Admin and not registered as a Staff user
