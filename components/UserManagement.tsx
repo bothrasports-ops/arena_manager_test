@@ -125,8 +125,31 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                 .from('user_profiles')
                 .delete()
                 .eq('id', id);
-            if (error) throw error;
-            toast.success("User profile removed");
+
+            if (error) {
+                // Fallback: If deleting the row fails due to foreign key constraints (e.g. platforms constraint to user_profiles),
+                // we can unlink/soft-delete the profile by setting its venue_id to its own ID and setting role to basic 'user'.
+                // This removes them from the admin's venue listing and revokes all rights to access this venue's bookings and sales.
+                console.warn("Hard delete failed due to constraints. Unlinking profile instead:", error.message);
+
+                const { error: updateError } = await supabase
+                    .from('user_profiles')
+                    .update({
+                        venue_id: id,
+                        role: UserRole.USER,
+                        venue_name: 'Unlinked Arena'
+                    })
+                    .eq('id', id);
+
+                if (updateError) {
+                    throw new Error(`Fallback unlinking also failed: ${updateError.message}`);
+                }
+
+                toast.success("Staff profile unlinked and access revoked successfully.");
+            } else {
+                toast.success("User profile removed");
+            }
+
             fetchProfiles();
         } catch (error: any) {
             toast.error(`Delete failed: ${error.message}`);
