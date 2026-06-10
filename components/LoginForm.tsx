@@ -71,55 +71,28 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
         toast.success("Account created successfully! You can now sign in.");
         setIsSignUp(false);
       } else {
-        // PASSWORDLESS FOR STAFF ROLE:
-        // Try searching for an existing staff profile with this email or username matching role 'user'
-        let isStaffUser = false;
-        let staffVenueName = 'My Arena';
-
-        try {
-          const { data: profileRows, error: profileErr } = await supabase
-              .from('user_profiles')
-              .select('*')
-              .in('email', [loginEmail, safeAdminName.trim().toLowerCase()]);
-
-          if (profileErr) {
-            console.error("Staff profile check database error:", profileErr);
-          }
-
-          if (!profileErr && profileRows && profileRows.length > 0) {
-            const foundProfile = profileRows[0];
-            if (foundProfile.role === 'user') {
-              isStaffUser = true;
-              staffVenueName = foundProfile.venue_name || 'My Arena';
-            }
-          }
-        } catch (checkErr) {
-          console.warn("Could not retrieve staff profile to check role pre-emptively:", checkErr);
-        }
+        // PASSWORDLESS FOR STAFF ROLE - POST-LOGIN VERIFICATION FLOW
+        const staffPresetPassword = `StaffBypass_2026_NoPassRequired!`;
 
         if (loginType === 'user') {
-          if (!isStaffUser) {
-            throw new Error(`No registered Staff profile matching Username '${safeAdminName}' was found. Please ensure the admin has registered your username first.`);
-          }
-
-          // Automatic passwordless flow using a reliable preset staff security key
-          const staffPresetPassword = `StaffBypass_2026_NoPassRequired!`;
+          let authUser: any = null;
 
           try {
-            const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+            // 1. Try signing in with the staff preset password
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
               email: loginEmail,
               password: staffPresetPassword,
             });
 
             if (signInError) {
-              // If we haven't signed them up in Auth yet, automatically register them in Auth under the hood
+              // 2. First login: Auth user doesn't exist yet, register them under the hood
               const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
                 email: loginEmail,
                 password: staffPresetPassword,
                 options: {
                   data: {
                     admin_name: safeAdminName || loginEmail.split('@')[0],
-                    venue_name: staffVenueName,
+                    venue_name: 'My Arena',
                     admin_email: loginEmail
                   }
                 }
@@ -128,35 +101,95 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
               if (signUpError) throw signUpError;
 
               // Immediately log them in
-              const { error: retryError } = await supabase.auth.signInWithPassword({
+              const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
                 email: loginEmail,
                 password: staffPresetPassword,
               });
 
               if (retryError) throw retryError;
+              authUser = retryData.user;
+            } else {
+              authUser = signInData.user;
             }
-
-            toast.success("Logged in successfully as Staff!");
-            onAuthSuccess();
           } catch (authError: any) {
             throw new Error(`Staff passwordless authentication failed: ${authError.message}`);
           }
-        } else {
-          // Standard login for Admin, which ALWAYS requires a password
-          if (isStaffUser) {
-            throw new Error("This profile is registered as Staff. Please choose 'Sign in as User' to login without a password.");
+
+          if (!authUser) {
+            throw new Error("Could not authenticate user session.");
           }
 
+          // 3. User is now authenticated, query their profile to verify registration and role
+          const { data: profileRows, error: profileErr } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .in('email', [loginEmail, safeAdminName.trim().toLowerCase()]);
+
+          if (profileErr) {
+            await supabase.auth.signOut();
+            throw new Error(`Database verification failed: ${profileErr.message}`);
+          }
+
+          const hasProfile = profileRows && profileRows.length > 0;
+          const foundProfile = hasProfile ? profileRows[0] : null;
+
+          // 4. If they do not have a registered profile or they are an admin/unlinked/deactivated, sign out and reject
+          if (
+              !foundProfile ||
+              foundProfile.role === 'admin' ||
+              foundProfile.role === 'unlinked' ||
+              foundProfile.venue_name === 'Deactivated'
+          ) {
+            await supabase.auth.signOut();
+            throw new Error(`No registered Staff profile matching Username '${safeAdminName}' was found. Please ensure the admin has registered your username first.`);
+          }
+
+          // 5. Connect the authenticated user's ID back to the pre-created profile row if it's currently empty or mismatches
+          if (foundProfile.id !== authUser.id) {
+            const { error: linkErr } = await supabase
+                .from('user_profiles')
+                .update({ id: authUser.id })
+                .eq('email', foundProfile.email);
+
+            if (linkErr) {
+              console.warn("Non-blocking warning: Could not link auth UID inside user_profiles table:", linkErr);
+            }
+          }
+
+          toast.success("Logged in successfully as Staff!");
+          onAuthSuccess();
+        } else {
+          // Standard login for Admin, which ALWAYS requires a password
           if (!password) {
             throw new Error("Password is required for Admin profiles.");
           }
 
-          const { error: signInError } = await supabase.auth.signInWithPassword({
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: loginEmail,
             password,
           });
 
           if (signInError) throw signInError;
+
+          const authUser = signInData?.user;
+          if (!authUser) {
+            throw new Error("Could not retrieve logged-in session.");
+          }
+
+          // Verify they are actually an Admin and not registered as a Staff user
+          const { data: profileRows, error: profileErr } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .in('email', [loginEmail, safeAdminName.trim().toLowerCase()]);
+
+          if (!profileErr && profileRows && profileRows.length > 0) {
+            const foundProfile = profileRows[0];
+            if (foundProfile.role === 'user') {
+              await supabase.auth.signOut();
+              throw new Error("This profile is registered as Staff. Please choose 'Sign in as User' to login without a password.");
+            }
+          }
+
           onAuthSuccess();
         }
       }
