@@ -100,6 +100,27 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
 
         setIsProcessing(id);
         try {
+            // 1. Delete referencing platforms to avoid foreign key violations
+            const { error: platError } = await supabase
+                .from('platforms')
+                .delete()
+                .eq('venue_id', id);
+
+            if (platError) {
+                console.warn("Non-blocking error clean-up for primary 'platforms' table:", platError);
+            }
+
+            // 2. Clear from secondary booking_platforms table as well
+            const { error: bpError } = await supabase
+                .from('booking_platforms')
+                .delete()
+                .eq('venue_id', id);
+
+            if (bpError) {
+                console.warn("Non-blocking error clean-up for secondary 'booking_platforms' table:", bpError);
+            }
+
+            // 3. Now delete the user profile safely
             const { error } = await supabase
                 .from('user_profiles')
                 .delete()
