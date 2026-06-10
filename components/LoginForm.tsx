@@ -351,9 +351,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
               </button>
             </form>
 
-            {showVideoDemo && (
-                <SignupVideoDemo onClose={() => setShowVideoDemo(false)} />
-            )}
 
             {!isSignUp && (
                 <div className="mt-8 pt-6 border-t border-slate-100">
