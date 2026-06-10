@@ -39,7 +39,7 @@ import CoachingUI from './components/CoachingUI';
 import Finances from './components/Finances';
 import ExpensesManager from './components/ExpensesManager';
 import PlatformManager from './components/PlatformManager';
-import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, Student, UserProfile, Court, MembershipPlanDefinition, BookingPlatform, PaymentMethod } from './types';
+import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, Student, UserProfile, Court, MembershipPlanDefinition, BookingPlatform, PaymentMethod, Expense } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const App: React.FC = () => {
@@ -435,10 +435,41 @@ const App: React.FC = () => {
         venueId: p.venue_id
       }));
 
-      // Fetch Expenses from Local Storage for multi-tenant venue partitioning
-      const expensesKey = `venueiq_expenses_${targetVenueId}`;
-      const expensesStr = localStorage.getItem(expensesKey);
-      const mappedExpenses = expensesStr ? JSON.parse(expensesStr) : [];
+      // Try to fetch expenses from Supabase; fallback seamlessly to localStorage if table does not exist
+      let mappedExpenses: Expense[] = [];
+      let loadedFromDb = false;
+      try {
+        const { data: dbExpenses, error: expensesError } = await supabase
+            .from('expenses')
+            .select('*')
+            .eq('venue_id', targetVenueId)
+            .order('expense_date', { ascending: false });
+
+        if (!expensesError && dbExpenses) {
+          mappedExpenses = dbExpenses.map((e: any) => ({
+            id: e.id,
+            venueId: e.venue_id,
+            description: e.description,
+            amount: Number(e.amount),
+            category: e.category,
+            expenseDate: e.expense_date,
+            paymentMethod: e.payment_method as PaymentMethod,
+            createdAt: e.created_at
+          }));
+          loadedFromDb = true;
+        } else if (expensesError) {
+          console.warn("Supabase 'expenses' table check skipped/failed (likely table not created yet):", expensesError.message);
+        }
+      } catch (err) {
+        console.warn("Supabase expenses table request errored (falling back to LocalStorage):", err);
+      }
+
+      if (!loadedFromDb) {
+        // Fetch Expenses from Local Storage for multi-tenant venue partitioning
+        const expensesKey = `venueiq_expenses_${targetVenueId}`;
+        const expensesStr = localStorage.getItem(expensesKey);
+        mappedExpenses = expensesStr ? JSON.parse(expensesStr) : [];
+      }
 
       setAppState(prev => ({
         ...prev,
@@ -473,12 +504,53 @@ const App: React.FC = () => {
 
   const refreshData = () => fetchData();
 
-  const handleSaveExpenses = (updatedExpenses: any[]) => {
+  const handleSaveExpenses = async (updatedExpenses: any[]) => {
     const venueId = appState.profile?.venue_id || appState.user?.id;
     if (!venueId) return;
+
+    // 1. Instantly update local UI state for snappy user experience
+    setAppState(prev => ({ ...prev, expenses: updatedExpenses }));
+
+    // 2. Persist locally to localStorage as an immediate fallback backup
     const expensesKey = `venueiq_expenses_${venueId}`;
     localStorage.setItem(expensesKey, JSON.stringify(updatedExpenses));
-    setAppState(prev => ({ ...prev, expenses: updatedExpenses }));
+
+    // 3. Try to sync with Supabase 'expenses' table in the background
+    try {
+      // Check if table is available by querying it
+      const { data: dbCurrent, error: fetchError } = await supabase
+          .from('expenses')
+          .select('id')
+          .eq('venue_id', venueId);
+
+      if (!fetchError) {
+        const dbIds = new Set((dbCurrent || []).map((e: any) => e.id));
+        const updatedIds = new Set(updatedExpenses.map(e => e.id));
+
+        // Delete records in DB that are not in the current list
+        const deletedIds = Array.from(dbIds).filter(id => !updatedIds.has(id));
+        if (deletedIds.length > 0) {
+          await supabase.from('expenses').delete().in('id', deletedIds);
+        }
+
+        // Upsert the updated list
+        if (updatedExpenses.length > 0) {
+          const rowsToUpsert = updatedExpenses.map(e => ({
+            id: e.id,
+            venue_id: venueId,
+            description: e.description,
+            amount: Number(e.amount),
+            category: e.category,
+            expense_date: e.expenseDate,
+            payment_method: e.paymentMethod || 'Cash',
+            created_at: e.createdAt
+          }));
+          await supabase.from('expenses').upsert(rowsToUpsert);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not sync expenses to database (standard local fallback is active):", err);
+    }
   };
 
   const handleDeleteBooking = async (id: string) => {
@@ -513,6 +585,17 @@ const App: React.FC = () => {
   };
 
   const isAdmin = appState.profile?.role === UserRole.ADMIN;
+
+  // Seamless route/tab-guard enforcing strict role permissions for non-admin profiles
+  useEffect(() => {
+    if (appState.profile && !isAdmin) {
+      const adminOnlyTabs = ['dashboard', 'finances', 'users', 'plans', 'inventory', 'platforms', 'expenses', 'members', 'coaching'];
+      if (adminOnlyTabs.includes(activeTab)) {
+        setActiveTab('active');
+        toast.error('Access restricted to administrators.');
+      }
+    }
+  }, [activeTab, isAdmin, appState.profile]);
 
   if (isConfigMissing) {
     return (
