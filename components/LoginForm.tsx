@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { Sport } from '../types';
 
+
 interface LoginFormProps {
   onAuthSuccess: () => void;
 }
@@ -79,7 +80,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
           const { data: profileRows, error: profileErr } = await supabase
               .from('user_profiles')
               .select('*')
-              .or(`email.eq.${loginEmail},email.eq.${safeAdminName.trim().toLowerCase()}`);
+              .in('email', [loginEmail, safeAdminName.trim().toLowerCase()]);
+
+          if (profileErr) {
+            console.error("Staff profile check database error:", profileErr);
+          }
 
           if (!profileErr && profileRows && profileRows.length > 0) {
             const foundProfile = profileRows[0];
