@@ -266,65 +266,63 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                 </div>
             </div>
 
-            {isAdmin && (
-                <form onSubmit={handleAddCourt} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Court Name / Number</label>
-                            <input
-                                required
-                                type="text"
-                                value={newCourtName}
-                                onChange={(e) => setNewCourtName(e.target.value)}
-                                placeholder="e.g. Court 1"
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Sport</label>
-                            <select
-                                value={newCourtSport}
-                                onChange={(e) => setNewCourtSport(e.target.value as Sport)}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold appearance-none"
-                            >
-                                {(availableSports.length > 0 ? availableSports : Object.values(Sport)).map(s => (
-                                    <option key={s} value={s}>{s}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Start Hour</label>
-                            <input
-                                type="time"
-                                value={startTime}
-                                onChange={(e) => {
-                                    const newStart = e.target.value;
-                                    setStartTime(newStart);
-                                    setEndTime(getAutoEndTime(newStart));
-                                }}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">End Hour</label>
-                            <input
-                                type="time"
-                                value={endTime}
-                                onChange={(e) => setEndTime(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold"
-                            />
-                        </div>
+            <form onSubmit={handleAddCourt} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Court Name / Number</label>
+                        <input
+                            required
+                            type="text"
+                            value={newCourtName}
+                            onChange={(e) => setNewCourtName(e.target.value)}
+                            placeholder="e.g. Court 1"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold"
+                        />
                     </div>
-                    <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full lg:w-max px-8 py-3 bg-indigo-600 text-white rounded-2xl text-xl font-black flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all disabled:opacity-50 self-end"
-                    >
-                        {isSubmitting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                        Add Court
-                    </button>
-                </form>
-            )}
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Sport</label>
+                        <select
+                            value={newCourtSport}
+                            onChange={(e) => setNewCourtSport(e.target.value as Sport)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold appearance-none"
+                        >
+                            {(availableSports.length > 0 ? availableSports : Object.values(Sport)).map(s => (
+                                <option key={s} value={s}>{s}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Start Hour</label>
+                        <input
+                            type="time"
+                            value={startTime}
+                            onChange={(e) => {
+                                const newStart = e.target.value;
+                                setStartTime(newStart);
+                                setEndTime(getAutoEndTime(newStart));
+                            }}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">End Hour</label>
+                        <input
+                            type="time"
+                            value={endTime}
+                            onChange={(e) => setEndTime(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold"
+                        />
+                    </div>
+                </div>
+                <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full lg:w-max px-8 py-3 bg-indigo-600 text-white rounded-2xl text-xl font-black flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all disabled:opacity-50 self-end"
+                >
+                    {isSubmitting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                    Add Court
+                </button>
+            </form>
 
             <div className="grid grid-cols-1 gap-6">
                 {courts.length === 0 ? (
@@ -419,24 +417,22 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                                             <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
                                                 <Trophy className="w-6 h-6" />
                                             </div>
-                                            {isAdmin && (
-                                                <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200">
-                                                    <button
-                                                        onClick={() => handleStartEdit(court)}
-                                                        className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                                                        title="Edit Court"
-                                                    >
-                                                        <Edit2 className="w-5 h-5" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteCourt(court.id)}
-                                                        className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                                                        title="Delete Court"
-                                                    >
-                                                        <Trash2 className="w-5 h-5" />
-                                                    </button>
-                                                </div>
-                                            )}
+                                            <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200">
+                                                <button
+                                                    onClick={() => handleStartEdit(court)}
+                                                    className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                                    title="Edit Court"
+                                                >
+                                                    <Edit2 className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteCourt(court.id)}
+                                                    className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                                    title="Delete Court"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
                                         </div>
                                         <h3 className="text-3xl font-black text-slate-900">{court.name}</h3>
                                         <p className="text-indigo-500 font-bold text-sm mt-1.5">{court.sport}</p>

@@ -15,6 +15,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loginType, setLoginType] = useState<'admin' | 'user'>('admin');
 
   // Form states
   const [password, setPassword] = useState('');
@@ -92,7 +93,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
           console.warn("Could not retrieve staff profile to check role pre-emptively:", checkErr);
         }
 
-        if (isStaffUser) {
+        if (loginType === 'user') {
+          if (!isStaffUser) {
+            throw new Error(`No registered Staff profile matching Username '${safeAdminName}' was found. Please ensure the admin has registered your username first.`);
+          }
+
           // Automatic passwordless flow using a reliable preset staff security key
           const staffPresetPassword = `StaffBypass_2026_NoPassRequired!`;
 
@@ -134,6 +139,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
           }
         } else {
           // Standard login for Admin, which ALWAYS requires a password
+          if (isStaffUser) {
+            throw new Error("This profile is registered as Staff. Please choose 'Sign in as User' to login without a password.");
+          }
+
           if (!password) {
             throw new Error("Password is required for Admin profiles.");
           }
@@ -170,20 +179,63 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
           </div>
 
           <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200">
-            <div className="flex bg-slate-100 p-1 rounded-2xl mb-8">
+            <div className="flex bg-slate-100 p-1 rounded-2xl mb-6">
               <button
-                  onClick={() => setIsSignUp(false)}
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(false);
+                    setError(null);
+                  }}
                   className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${!isSignUp ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 Sign In
               </button>
               <button
-                  onClick={() => setIsSignUp(true)}
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(true);
+                    setError(null);
+                  }}
                   className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${isSignUp ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 Sign Up
               </button>
             </div>
+
+            {!isSignUp && (
+                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100 mb-6">
+                  <button
+                      type="button"
+                      onClick={() => {
+                        setLoginType('admin');
+                        setError(null);
+                      }}
+                      className={`py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                          loginType === 'admin'
+                              ? 'bg-white text-indigo-600 border border-slate-200/60 shadow-sm font-black'
+                              : 'text-slate-500 hover:text-slate-700 font-bold'
+                      }`}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Sign in as Admin
+                  </button>
+                  <button
+                      type="button"
+                      onClick={() => {
+                        setLoginType('user');
+                        setError(null);
+                      }}
+                      className={`py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                          loginType === 'user'
+                              ? 'bg-white text-indigo-600 border border-slate-200/60 shadow-sm font-black'
+                              : 'text-slate-500 hover:text-slate-700 font-bold'
+                      }`}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    Sign in as User
+                  </button>
+                </div>
+            )}
 
             <form onSubmit={handleAuth} className="space-y-6">
               {error && (
@@ -194,16 +246,22 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">Email / Username</label>
+                <label className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">
+                  {isSignUp ? 'Email / Username' : (loginType === 'user' ? 'Username' : 'Email / Username')}
+                </label>
                 <div className="relative group">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                  {loginType === 'user' && !isSignUp ? (
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                  ) : (
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                  )}
                   <input
                       required
                       type="text"
                       value={adminName}
                       onChange={(e) => setAdminName(e.target.value)}
                       className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-medium"
-                      placeholder="name@example.com"
+                      placeholder={isSignUp ? 'name@example.com' : (loginType === 'user' ? 'Enter Registered Username' : 'name@example.com')}
                   />
                 </div>
               </div>
@@ -252,19 +310,22 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
                   </>
               )}
 
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">Password</label>
-                <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                  <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-medium"
-                      placeholder="•••••••• (Leave blank for Staff)"
-                  />
-                </div>
-              </div>
+              {(isSignUp || loginType === 'admin') && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">Password</label>
+                    <div className="relative group">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                      <input
+                          required={isSignUp || loginType === 'admin'}
+                          type="password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-medium"
+                          placeholder="••••••••"
+                      />
+                    </div>
+                  </div>
+              )}
 
               <button
                   type="submit"
@@ -303,8 +364,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
                       <span className="text-xs font-bold uppercase tracking-wider">Authentication Guide</span>
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
-                      <strong>Administrators:</strong> Sign in using your email and password.<br/>
-                      <strong>Staff / Users:</strong> Enter only your registered Username (no password required).
+                      <strong>Administrators:</strong> Sign in with email and secret password.<br/>
+                      <strong>Staff / Users:</strong> Choose &apos;Sign in as User&apos; and type only your registered Username (no password required).
                     </p>
                   </div>
                 </div>

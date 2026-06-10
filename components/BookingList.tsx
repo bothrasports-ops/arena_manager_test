@@ -348,7 +348,7 @@ const BookingList: React.FC<BookingListPropsUI> = ({
                             >
                               <Printer className="w-5 h-5" />
                             </button>
-                            {onDelete && isAdmin && (
+                            {onDelete && (
                                 <div className="flex items-center gap-1">
                                   {deletingId === booking.id ? (
                                       <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">

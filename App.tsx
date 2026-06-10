@@ -667,7 +667,7 @@ const App: React.FC = () => {
   // Seamless route/tab-guard enforcing strict role permissions for non-admin profiles
   useEffect(() => {
     if (appState.profile && !isAdmin) {
-      const adminOnlyTabs = ['dashboard', 'finances', 'users', 'plans', 'inventory', 'platforms', 'expenses', 'members', 'coaching'];
+      const adminOnlyTabs = ['dashboard', 'finances', 'users', 'plans', 'inventory', 'platforms', 'expenses'];
       if (adminOnlyTabs.includes(activeTab)) {
         setActiveTab('active');
         toast.error('Access restricted to administrators.');
@@ -822,22 +822,18 @@ const App: React.FC = () => {
                             active={activeTab === 'dashboard'}
                         />
                     )}
-                    {isAdmin && (
-                        <DropdownItem
-                            onClick={() => setActiveTab('members')}
-                            icon={<Users className="w-4 h-4" />}
-                            label="Membership"
-                            active={activeTab === 'members'}
-                        />
-                    )}
-                    {isAdmin && (
-                        <DropdownItem
-                            onClick={() => setActiveTab('coaching')}
-                            icon={<Zap className="w-4 h-4" />}
-                            label="Coaching"
-                            active={activeTab === 'coaching'}
-                        />
-                    )}
+                    <DropdownItem
+                        onClick={() => setActiveTab('members')}
+                        icon={<Users className="w-4 h-4" />}
+                        label="Membership"
+                        active={activeTab === 'members'}
+                    />
+                    <DropdownItem
+                        onClick={() => setActiveTab('coaching')}
+                        icon={<Zap className="w-4 h-4" />}
+                        label="Coaching"
+                        active={activeTab === 'coaching'}
+                    />
                     <DropdownItem
                         onClick={() => setActiveTab('drinks')}
                         icon={<ShoppingBag className="w-4 h-4" />}
@@ -938,22 +934,18 @@ const App: React.FC = () => {
                       label="Expenses"
                   />
               )}
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'members'}
-                      onClick={() => setActiveTab('members')}
-                      icon={<Users className="w-5 h-5" />}
-                      label="Membership"
-                  />
-              )}
-              {isAdmin && (
-                  <NavButton
-                      active={activeTab === 'coaching'}
-                      onClick={() => setActiveTab('coaching')}
-                      icon={<Zap className="w-5 h-5" />}
-                      label="Coaching"
-                  />
-              )}
+              <NavButton
+                  active={activeTab === 'members'}
+                  onClick={() => setActiveTab('members')}
+                  icon={<Users className="w-5 h-5" />}
+                  label="Membership"
+              />
+              <NavButton
+                  active={activeTab === 'coaching'}
+                  onClick={() => setActiveTab('coaching')}
+                  icon={<Zap className="w-5 h-5" />}
+                  label="Coaching"
+              />
               <NavButton
                   active={activeTab === 'new'}
                   onClick={() => setActiveTab('new')}
@@ -1040,7 +1032,7 @@ const App: React.FC = () => {
                             availableSports={appState.profile?.available_sports || []}
                         />
                     )}
-                    {activeTab === 'members' && isAdmin && (
+                    {activeTab === 'members' && (
                         <MembershipManager
                             members={appState.members}
                             plans={appState.membershipPlans}
@@ -1049,7 +1041,7 @@ const App: React.FC = () => {
                             availableSports={appState.profile?.available_sports || []}
                         />
                     )}
-                    {activeTab === 'coaching' && isAdmin && (
+                    {activeTab === 'coaching' && (
                         <CoachingUI
                             students={appState.students}
                             onUpdate={refreshData}
