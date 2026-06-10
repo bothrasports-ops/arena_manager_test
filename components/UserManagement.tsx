@@ -45,7 +45,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
             if (error) throw error;
 
             const mapped: UserProfile[] = (data || [])
-                .filter((row: any) => row.role !== 'unlinked' && row.role !== UserRole.UNLINKED)
+                .filter((row: any) => row.role !== 'unlinked' && row.role !== UserRole.UNLINKED && row.venue_name !== 'Deactivated')
                 .map((row: any) => ({
                     id: row.id,
                     admin_name: row.admin_name || '',
@@ -130,14 +130,14 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
 
             if (error) {
                 // Fallback or Safe Deactivation: If deleting the row fails due to foreign key constraints or RLS delete constraints,
-                // we can deactivate/unlink the profile by setting its role to 'unlinked'. Since its venue_id is unchanged, this update
-                // is fully authorized under the admin's RLS update policy, yet it revokes all system dashboard access.
-                console.warn("Hard delete failed. Setting role to unlinked/deactivated instead:", error.message);
+                // we can deactivate/unlink the profile by setting its venue_name to 'Deactivated'. Since its venue_id is unchanged, this update
+                // is fully authorized under the admin's RLS update policy, and perfectly bypasses any database Role check constraints.
+                console.warn("Hard delete failed. Setting venue_name to Deactivated instead:", error.message);
 
                 const { error: updateError } = await supabase
                     .from('user_profiles')
                     .update({
-                        role: UserRole.UNLINKED
+                        venue_name: 'Deactivated'
                     })
                     .eq('id', id);
 

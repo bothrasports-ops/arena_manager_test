@@ -643,7 +643,7 @@ const App: React.FC = () => {
     return <LoginForm onAuthSuccess={fetchData} />;
   }
 
-  if (appState.profile?.role === ('unlinked' as any)) {
+  if (appState.profile?.role === ('unlinked' as any) || appState.profile?.venue_name === 'Deactivated') {
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
           <Toaster position="top-right" richColors />
