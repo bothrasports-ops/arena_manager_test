@@ -1,17 +1,15 @@
 
 import React, { useState } from 'react';
-import { Zap, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Building2, CheckCircle2, Loader2, Sparkles, PlayCircle } from 'lucide-react';
+import { Zap, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Building2, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { Sport } from '../types';
-
 
 interface LoginFormProps {
   onAuthSuccess: () => void;
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
-  const [showVideoDemo, setShowVideoDemo] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +117,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
             throw new Error("Could not authenticate user session.");
           }
 
+          // Trigger get_venue_safe RPC beforehand to let SECURITY DEFINER trigger the profile check,
+          // which reconciles and copies/heals any pre-created user records with this new Auth ID.
+          // This avoids empty profileRows due to RLS matching.
+          try {
+            await supabase.rpc('get_venue_safe');
+          } catch (rpcErr) {
+            console.warn("get_venue_safe pre-reconciliation RPC warning for user:", rpcErr);
+          }
+
           // 3. User is now authenticated, query their profile to verify registration and role
           const { data: profileRows, error: profileErr } = await supabase
               .from('user_profiles')
@@ -174,6 +181,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
           const authUser = signInData?.user;
           if (!authUser) {
             throw new Error("Could not retrieve logged-in session.");
+          }
+
+          // Trigger get_venue_safe RPC beforehand to let SECURITY DEFINER trigger the profile check,
+          // which reconciles and copies/heals any pre-created user records with this new Auth ID.
+          try {
+            await supabase.rpc('get_venue_safe');
+          } catch (rpcErr) {
+            console.warn("get_venue_safe pre-reconciliation RPC warning for admin:", rpcErr);
           }
 
           // Verify they are actually an Admin and not registered as a Staff user
@@ -379,16 +394,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
                 )}
               </button>
 
-              <button
-                  type="button"
-                  onClick={() => setShowVideoDemo(true)}
-                  className="w-full py-3.5 mt-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl font-bold flex items-center justify-center gap-2 border border-indigo-200/50 transition-all active:scale-95 text-sm"
-              >
-                <PlayCircle className="w-4 h-4 fill-indigo-100/50" />
-                Watch Sign-up Demo Video 🎬
-              </button>
             </form>
-
 
             {!isSignUp && (
                 <div className="mt-8 pt-6 border-t border-slate-100">
