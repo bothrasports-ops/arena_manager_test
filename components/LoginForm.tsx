@@ -4,7 +4,6 @@ import { Zap, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Buil
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { Sport } from '../types';
-import { SignupVideoDemo } from './SignupVideoDemo';
 
 interface LoginFormProps {
   onAuthSuccess: () => void;
