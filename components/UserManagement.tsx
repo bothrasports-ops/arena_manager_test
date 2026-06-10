@@ -69,13 +69,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
 
         setIsProcessing('add');
         try {
-            // In a real app, you'd call a Supabase Edge Function to create an auth user.
-            // For this prototype/MVP, we'll suggest the admin has the staff sign up
-            // and we pre-create their profile role here.
+            const rawEmail = email.trim().toLowerCase();
+            const formattedEmail = rawEmail.includes('@') ? rawEmail : `${rawEmail}@venueiq.local`;
+
+            // Check if duplicate exists to give a clear, high-quality descriptive error message
+            const { data: existing, error: checkErr } = await supabase
+                .from('user_profiles')
+                .select('id')
+                .eq('email', formattedEmail);
+
+            if (!checkErr && existing && existing.length > 0) {
+                throw new Error(`A staff profile with the Username or Email '${rawEmail}' already exists.`);
+            }
+
             const { error } = await supabase
                 .from('user_profiles')
                 .insert({
-                    email: email.trim().toLowerCase(),
+                    email: formattedEmail,
                     role: role,
                     venue_id: currentProfile?.venue_id || currentProfile?.id,
                     venue_name: currentProfile?.venue_name || 'My Arena'
@@ -83,7 +93,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
 
             if (error) throw error;
 
-            toast.success(`Profile for ${email} created as ${role}`);
+            toast.success(`Profile for ${rawEmail} created as ${role}. No password or sign up required!`);
             setEmail('');
             setIsAdding(false);
             fetchProfiles();
@@ -191,15 +201,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                 <form onSubmit={handleAddUser} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl max-w-xl mx-auto">
                     <div className="space-y-4">
                         <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Staff Email Address</label>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Staff Username (or Email)</label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <input
-                                    type="email"
+                                    type="text"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     required
-                                    placeholder="staff@venueiq.com"
+                                    placeholder="e.g., john_staff or john@venueiq.com"
                                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                                 />
                             </div>
@@ -228,7 +238,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                         <div className="pt-2">
                             <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl mb-4">
                                 <p className="text-[10px] text-blue-700 font-bold leading-tight">
-                                    Note: The staff member must sign up with this email. Their restricted access will automatically apply once they log in.
+                                    Note: Staff members (user role) do not need to sign up. Once added, they can log in instantly by entering only their Username in the login form (no password required).
                                 </p>
                             </div>
                             <button

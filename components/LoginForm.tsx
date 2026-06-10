@@ -1,15 +1,17 @@
 
 import React, { useState } from 'react';
-import { Zap, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Building2, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { Zap, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Building2, CheckCircle2, Loader2, Sparkles, PlayCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { Sport } from '../types';
+import { SignupVideoDemo } from './SignupVideoDemo';
 
 interface LoginFormProps {
   onAuthSuccess: () => void;
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
+  const [showVideoDemo, setShowVideoDemo] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,14 +37,18 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
 
     // If it's a full email, use it. Otherwise, assume it's a handle for the .local domain
     const safeAdminName = adminName || '';
+    const nameOnly = safeAdminName.trim().toLowerCase().replace(/\s+/g, '');
     const loginEmail = safeAdminName.includes('@')
         ? safeAdminName.trim().toLowerCase()
-        : `${safeAdminName.toLowerCase().replace(/\s+/g, '')}@venueiq.local`;
+        : `${nameOnly}@venueiq.local`;
 
     try {
       if (isSignUp) {
         if (selectedSports.length === 0) {
           throw new Error("Please select at least one sport.");
+        }
+        if (!password) {
+          throw new Error("Password is required for new venue signup.");
         }
 
         const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -64,13 +70,82 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
         toast.success("Account created successfully! You can now sign in.");
         setIsSignUp(false);
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: loginEmail,
-          password,
-        });
+        // PASSWORDLESS FOR STAFF ROLE:
+        // Try searching for an existing staff profile with this email or username matching role 'user'
+        let isStaffUser = false;
+        let staffVenueName = 'My Arena';
 
-        if (signInError) throw signInError;
-        onAuthSuccess();
+        try {
+          const { data: profileRows, error: profileErr } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .or(`email.eq.${loginEmail},email.eq.${safeAdminName.trim().toLowerCase()}`);
+
+          if (!profileErr && profileRows && profileRows.length > 0) {
+            const foundProfile = profileRows[0];
+            if (foundProfile.role === 'user') {
+              isStaffUser = true;
+              staffVenueName = foundProfile.venue_name || 'My Arena';
+            }
+          }
+        } catch (checkErr) {
+          console.warn("Could not retrieve staff profile to check role pre-emptively:", checkErr);
+        }
+
+        if (isStaffUser) {
+          // Automatic passwordless flow using a reliable preset staff security key
+          const staffPresetPassword = `StaffBypass_2026_NoPassRequired!`;
+
+          try {
+            const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: loginEmail,
+              password: staffPresetPassword,
+            });
+
+            if (signInError) {
+              // If we haven't signed them up in Auth yet, automatically register them in Auth under the hood
+              const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                email: loginEmail,
+                password: staffPresetPassword,
+                options: {
+                  data: {
+                    admin_name: safeAdminName || loginEmail.split('@')[0],
+                    venue_name: staffVenueName,
+                    admin_email: loginEmail
+                  }
+                }
+              });
+
+              if (signUpError) throw signUpError;
+
+              // Immediately log them in
+              const { error: retryError } = await supabase.auth.signInWithPassword({
+                email: loginEmail,
+                password: staffPresetPassword,
+              });
+
+              if (retryError) throw retryError;
+            }
+
+            toast.success("Logged in successfully as Staff!");
+            onAuthSuccess();
+          } catch (authError: any) {
+            throw new Error(`Staff passwordless authentication failed: ${authError.message}`);
+          }
+        } else {
+          // Standard login for Admin, which ALWAYS requires a password
+          if (!password) {
+            throw new Error("Password is required for Admin profiles.");
+          }
+
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: loginEmail,
+            password,
+          });
+
+          if (signInError) throw signInError;
+          onAuthSuccess();
+        }
       }
     } catch (err: any) {
       setError(err.message || "An error occurred during authentication.");
@@ -182,12 +257,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
                 <div className="relative group">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                   <input
-                      required
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-medium"
-                      placeholder="••••••••"
+                      placeholder="•••••••• (Leave blank for Staff)"
                   />
                 </div>
               </div>
@@ -206,17 +280,31 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
                     </>
                 )}
               </button>
+
+              <button
+                  type="button"
+                  onClick={() => setShowVideoDemo(true)}
+                  className="w-full py-3.5 mt-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl font-bold flex items-center justify-center gap-2 border border-indigo-200/50 transition-all active:scale-95 text-sm"
+              >
+                <PlayCircle className="w-4 h-4 fill-indigo-100/50" />
+                Watch Sign-up Demo Video 🎬
+              </button>
             </form>
+
+            {showVideoDemo && (
+                <SignupVideoDemo onClose={() => setShowVideoDemo(false)} />
+            )}
 
             {!isSignUp && (
                 <div className="mt-8 pt-6 border-t border-slate-100">
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                     <div className="flex items-center gap-2 mb-2 text-slate-600">
                       <Info className="w-4 h-4" />
-                      <span className="text-xs font-bold uppercase tracking-wider">Authentication</span>
+                      <span className="text-xs font-bold uppercase tracking-wider">Authentication Guide</span>
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Sign in with your registered venue credentials. New venues must create a profile to start managing bookings.
+                      <strong>Administrators:</strong> Sign in using your email and password.<br/>
+                      <strong>Staff / Users:</strong> Enter only your registered Username (no password required).
                     </p>
                   </div>
                 </div>
