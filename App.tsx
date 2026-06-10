@@ -834,12 +834,6 @@ const App: React.FC = () => {
                         label="Coaching"
                         active={activeTab === 'coaching'}
                     />
-                    <DropdownItem
-                        onClick={() => setActiveTab('drinks')}
-                        icon={<ShoppingBag className="w-4 h-4" />}
-                        label="Drinks Sale"
-                        active={activeTab === 'drinks'}
-                    />
                     {isAdmin && (
                         <>
                           <DropdownMenu.Separator className="h-px bg-slate-100 my-1" />
@@ -957,6 +951,12 @@ const App: React.FC = () => {
                   onClick={() => setActiveTab('list')}
                   icon={<List className="w-5 h-5" />}
                   label="All Bookings"
+              />
+              <NavButton
+                  active={activeTab === 'drinks'}
+                  onClick={() => setActiveTab('drinks')}
+                  icon={<ShoppingBag className="w-5 h-5" />}
+                  label="Drinks Sale"
               />
             </nav>
 
@@ -1110,6 +1110,7 @@ const App: React.FC = () => {
           <MobileNavButton active={activeTab === 'court_manager'} onClick={() => setActiveTab('court_manager')} icon={<Grid className="w-6 h-6" />} label="Courts" />
           <MobileNavButton active={activeTab === 'new'} onClick={() => setActiveTab('new')} icon={<PlusCircle className="w-6 h-6" />} label="New" />
           <MobileNavButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List className="w-6 h-6" />} label="All" />
+          <MobileNavButton active={activeTab === 'drinks'} onClick={() => setActiveTab('drinks')} icon={<ShoppingBag className="w-6 h-6" />} label="Drinks" />
         </nav>
         <div className="lg:hidden h-16" />
       </div>

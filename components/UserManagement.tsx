@@ -86,6 +86,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                 .from('user_profiles')
                 .insert({
                     email: formattedEmail,
+                    admin_name: rawEmail.includes('@') ? rawEmail.split('@')[0] : rawEmail,
                     role: role,
                     venue_id: currentProfile?.venue_id || currentProfile?.id,
                     venue_name: currentProfile?.venue_name || 'My Arena'

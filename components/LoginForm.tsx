@@ -140,10 +140,27 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
           }
 
           // 3. User is now authenticated, query their profile to verify registration and role
-          const { data: profileRows, error: profileErr } = await supabase
+          let profileRows: any[] | null = null;
+          let profileErr: any = null;
+
+          const { data: emailRows, error: emailFetchErr } = await supabase
               .from('user_profiles')
               .select('*')
               .in('email', [loginEmail, safeAdminName.trim().toLowerCase()]);
+
+          profileErr = emailFetchErr;
+          profileRows = emailRows;
+
+          // Fallback: if email query returned empty (RLS blocking pre-created row), try by auth UID
+          if (!profileErr && (!profileRows || profileRows.length === 0)) {
+            const { data: uidRows, error: uidErr } = await supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('id', authUser.id);
+            if (!uidErr && uidRows && uidRows.length > 0) {
+              profileRows = uidRows;
+            }
+          }
 
           if (profileErr) {
             await supabase.auth.signOut();
