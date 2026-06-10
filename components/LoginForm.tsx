@@ -167,8 +167,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
             throw new Error(`Database verification failed: ${profileErr.message}`);
           }
 
-          const hasProfile = profileRows && profileRows.length > 0;
-          const foundProfile = hasProfile ? profileRows[0] : null;
+          const foundProfile = profileRows && profileRows.length > 0 ? profileRows[0] : null;
 
           // 4. If they do not have a registered profile or they are an admin/unlinked/deactivated, sign out and reject
           if (
