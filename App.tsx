@@ -988,32 +988,32 @@ DROP POLICY IF EXISTS "Allow direct sales management based on venue" ON pos_sale
 DROP POLICY IF EXISTS "Allow POS counter sales items management based on sales venue" ON pos_sale_items;
 DROP POLICY IF EXISTS "Allow expenses management based on venue" ON expenses;
 
--- 3. Create fresh, recursion-free policies using the secure helper function
+-- 3. Create fresh, recursion-free policies
 CREATE POLICY "Allow select on user_profiles" ON user_profiles
   FOR SELECT USING (
     id = auth.uid() OR 
-    venue_id = public.get_auth_user_venue_id()
+    venue_id = auth.uid()
   );
 
 CREATE POLICY "Allow insert on user_profiles" ON user_profiles
   FOR INSERT WITH CHECK (
     id = auth.uid() OR 
-    venue_id = public.get_auth_user_venue_id()
+    venue_id = auth.uid()
   );
 
 CREATE POLICY "Allow update on user_profiles" ON user_profiles
   FOR UPDATE USING (
     id = auth.uid() OR 
-    venue_id = public.get_auth_user_venue_id()
+    venue_id = auth.uid()
   ) WITH CHECK (
     id = auth.uid() OR 
-    venue_id = public.get_auth_user_venue_id()
+    venue_id = auth.uid()
   );
 
 CREATE POLICY "Allow delete on user_profiles" ON user_profiles
   FOR DELETE USING (
     id = auth.uid() OR 
-    venue_id = public.get_auth_user_venue_id()
+    venue_id = auth.uid()
   );
 
 CREATE POLICY "Allow courts management based on venue" ON courts 
