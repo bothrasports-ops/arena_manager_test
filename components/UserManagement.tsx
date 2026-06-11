@@ -86,10 +86,20 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                 throw new Error(`A staff profile with the Username or Email '${rawEmail}' already exists.`);
             }
 
+            const generatedId = typeof crypto.randomUUID === 'function'
+                ? crypto.randomUUID()
+                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                    const r = (Math.random() * 16) | 0;
+                    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+                    return v.toString(16);
+                });
+
             const { error } = await supabase
                 .from('user_profiles')
                 .insert({
+                    id: generatedId,
                     email: formattedEmail,
+                    admin_name: rawEmail,
                     role: role,
                     venue_id: currentProfile?.venue_id || currentProfile?.id,
                     venue_name: currentProfile?.venue_name || 'My Arena'

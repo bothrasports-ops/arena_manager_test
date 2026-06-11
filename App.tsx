@@ -923,14 +923,170 @@ const App: React.FC = () => {
         )}
 
         {fetchError && (
-            <div className="max-w-[1600px] mx-auto w-full px-4 mt-4">
-              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3">
-                <AlertTriangle className="w-5 h-5 shrink-0" />
-                <div>
-                  <p className="text-sm font-bold">Database Sync Error</p>
-                  <p className="text-xs opacity-80">{fetchError}. Please ensure your Supabase tables are created correctly.</p>
+            <div className="max-w-[1600px] mx-auto w-full px-4 mt-4 space-y-4">
+              <div className="bg-rose-50 border border-rose-200 text-rose-800 p-5 rounded-2xl flex items-start gap-3 shadow-sm">
+                <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-black text-rose-900">Database Sync Error</p>
+                  <p className="text-xs opacity-90 leading-relaxed font-semibold">{fetchError}</p>
+                  <p className="text-xs text-rose-700 font-medium leading-relaxed mt-2">
+                    This is caused by a recursive query in your Supabase table RLS policies (where a table policy queries itself).
+                    To resolve this immediately, please follow the 4 simple copy-paste steps below to clean your RLS policies instantly!
+                  </p>
                 </div>
               </div>
+
+              {(fetchError.toLowerCase().includes('recursion') || fetchError.toLowerCase().includes('infinite') || fetchError.toLowerCase().includes('policy')) && (
+                  <div className="bg-indigo-900 text-indigo-100 p-6 rounded-3xl border border-indigo-950/40 shadow-xl space-y-4 animate-in slide-in-from-top-3 duration-300">
+                    <div className="flex items-center gap-2 pb-2 border-b border-indigo-800">
+                      <Zap className="w-5 h-5 text-amber-400 fill-amber-400" />
+                      <h3 className="text-sm font-black uppercase tracking-wider text-white">How to Fix of Database policy Recursion</h3>
+                    </div>
+
+                    <div className="space-y-3 text-xs leading-relaxed">
+                      <p>
+                        Your current database has an infinite RLS policy recursion on <code className="bg-indigo-950 px-1.5 py-0.5 rounded text-indigo-300 font-mono">user_profiles</code>.
+                        Running this safe SQL snippet in your Supabase compiler will drops the old policies and creates fresh, super optimized ones that utilize a secure and fast helper function.
+                      </p>
+
+                      <ol className="list-decimal pl-5 space-y-2 text-[11px] text-indigo-200 font-medium">
+                        <li>Open your <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="text-amber-400 underline font-bold hover:text-amber-300">Supabase Dashboard</a>.</li>
+                        <li>Click on the <strong>SQL Editor</strong> tab (the icon that looks like <span className="font-mono font-bold">&gt;_</span> on the far left navigation rail).</li>
+                        <li>Click on <strong>+ New query</strong> at the top left.</li>
+                        <li><strong>Copy the SQL script below</strong>, paste it into the editor window, and click <strong>Run</strong> (or press Command/Ctrl + Enter).</li>
+                      </ol>
+                    </div>
+
+                    <div className="space-y-2 mt-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest leading-none">Safe SQL Snippet</span>
+                        <button
+                            onClick={() => {
+                              const sqlText = `-- 1. Create a security definer helper function to safely bypass RLS checks for current venue selection
+CREATE OR REPLACE FUNCTION public.get_auth_user_venue_id()
+RETURNS UUID AS $$
+  SELECT venue_id FROM public.user_profiles WHERE id = auth.uid();
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- 2. Drop all old recursive policies to avoid conflicts
+DROP POLICY IF EXISTS "Allow select on user_profiles for self or matching venue" ON user_profiles;
+DROP POLICY IF EXISTS "Allow select on user_profiles for self, staff, or matching venue" ON user_profiles;
+DROP POLICY IF EXISTS "Allow all operations for self on user_profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Allow select on user_profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Allow insert on user_profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Allow update on user_profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Allow delete on user_profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Allow courts management based on venue" ON courts;
+DROP POLICY IF EXISTS "Allow platforms management based on venue" ON booking_platforms;
+DROP POLICY IF EXISTS "Allow membership plans management based on venue" ON membership_plan_definitions;
+DROP POLICY IF EXISTS "Allow members management based on venue" ON members;
+DROP POLICY IF EXISTS "Allow coaching students management based on venue" ON coaching_students;
+DROP POLICY IF EXISTS "Allow inventory management based on venue" ON inventory;
+DROP POLICY IF EXISTS "Allow bookings management based on venue" ON bookings;
+DROP POLICY IF EXISTS "Allow booking drinks management based on booking venue" ON booking_drinks;
+DROP POLICY IF EXISTS "Allow direct sales management based on venue" ON pos_sales;
+DROP POLICY IF EXISTS "Allow POS counter sales items management based on sales venue" ON pos_sale_items;
+DROP POLICY IF EXISTS "Allow expenses management based on venue" ON expenses;
+
+-- 3. Create fresh, recursion-free policies using the secure helper function
+CREATE POLICY "Allow select on user_profiles" ON user_profiles
+  FOR SELECT USING (
+    id = auth.uid() OR 
+    venue_id = public.get_auth_user_venue_id()
+  );
+
+CREATE POLICY "Allow insert on user_profiles" ON user_profiles
+  FOR INSERT WITH CHECK (
+    id = auth.uid() OR 
+    venue_id = public.get_auth_user_venue_id()
+  );
+
+CREATE POLICY "Allow update on user_profiles" ON user_profiles
+  FOR UPDATE USING (
+    id = auth.uid() OR 
+    venue_id = public.get_auth_user_venue_id()
+  ) WITH CHECK (
+    id = auth.uid() OR 
+    venue_id = public.get_auth_user_venue_id()
+  );
+
+CREATE POLICY "Allow delete on user_profiles" ON user_profiles
+  FOR DELETE USING (
+    id = auth.uid() OR 
+    venue_id = public.get_auth_user_venue_id()
+  );
+
+CREATE POLICY "Allow courts management based on venue" ON courts 
+  FOR ALL USING (venue_id = public.get_auth_user_venue_id());
+
+CREATE POLICY "Allow platforms management based on venue" ON booking_platforms 
+  FOR ALL USING (venue_id = public.get_auth_user_venue_id());
+
+CREATE POLICY "Allow membership plans management based on venue" ON membership_plan_definitions 
+  FOR ALL USING (venue_id = public.get_auth_user_venue_id());
+
+CREATE POLICY "Allow members management based on venue" ON members 
+  FOR ALL USING (venue_id = public.get_auth_user_venue_id());
+
+CREATE POLICY "Allow coaching students management based on venue" ON coaching_students 
+  FOR ALL USING (venue_id = public.get_auth_user_venue_id());
+
+CREATE POLICY "Allow inventory management based on venue" ON inventory 
+  FOR ALL USING (venue_id = public.get_auth_user_venue_id());
+
+CREATE POLICY "Allow bookings management based on venue" ON bookings 
+  FOR ALL USING (venue_id = public.get_auth_user_venue_id());
+
+CREATE POLICY "Allow booking drinks management based on booking venue" ON booking_drinks 
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM bookings 
+      WHERE bookings.id = booking_drinks.booking_id 
+      AND bookings.venue_id = public.get_auth_user_venue_id()
+    )
+  );
+
+CREATE POLICY "Allow direct sales management based on venue" ON pos_sales 
+  FOR ALL USING (venue_id = public.get_auth_user_venue_id());
+
+CREATE POLICY "Allow POS counter sales items management based on sales venue" ON pos_sale_items 
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM pos_sales 
+      WHERE pos_sales.id = pos_sale_items.sale_id 
+      AND pos_sales.venue_id = public.get_auth_user_venue_id()
+    )
+  );
+
+CREATE POLICY "Allow expenses management based on venue" ON expenses 
+  FOR ALL USING (venue_id = public.get_auth_user_venue_id());`;
+                              navigator.clipboard.writeText(sqlText);
+                              toast.success("SQL Script copied to clipboard! Ready to run in SQL Editor.");
+                            }}
+                            className="px-3 py-1 bg-indigo-800 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg transition-colors border border-indigo-700/60 shadow-xs"
+                        >
+                          Copy SQL Script
+                        </button>
+                      </div>
+
+                      <div className="relative">
+                  <pre className="p-4 bg-indigo-950 text-indigo-300 font-mono text-[10px] rounded-2xl overflow-y-auto max-h-[190px] border border-indigo-800/80 shadow-inner select-all leading-relaxed whitespace-pre font-medium">
+                    {`-- 1. Create a security definer helper function
+CREATE OR REPLACE FUNCTION public.get_auth_user_venue_id()
+RETURNS UUID AS $$
+  SELECT venue_id FROM public.user_profiles WHERE id = auth.uid();
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- 2. Drop all old recursive policies to avoid conflicts
+DROP POLICY IF EXISTS "Allow select on user_profiles for self or matching venue" ON user_profiles;
+DROP POLICY IF EXISTS "Allow select on user_profiles for self, staff, or matching venue" ON user_profiles;
+DROP POLICY IF EXISTS "Allow courts management based on venue" ON courts;
+... (Click Copy SQL to get the full script!)`}
+                  </pre>
+                      </div>
+                    </div>
+                  </div>
+              )}
             </div>
         )}
 
