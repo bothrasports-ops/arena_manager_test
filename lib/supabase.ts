@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://gekihwvsdgafcqtyulos.supabase.co/rest/v1/';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://gekihwvsdgafcqtyulos.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdla2lod3ZzZGdhZmNxdHl1bG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNjYwMzksImV4cCI6MjA5Njc0MjAzOX0.4V32sevoCDBf5_20Ue80MfUDnGZDah5S8UmBgK2zc_0';
 
 // Export config status for App.tsx
