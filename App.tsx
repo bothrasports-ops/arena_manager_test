@@ -988,6 +988,9 @@ DROP POLICY IF EXISTS "Allow direct sales management based on venue" ON pos_sale
 DROP POLICY IF EXISTS "Allow POS counter sales items management based on sales venue" ON pos_sale_items;
 DROP POLICY IF EXISTS "Allow expenses management based on venue" ON expenses;
 
+-- 2.5 Drop strict foreign key constraint to allow creating staff profiles before they have auth accounts
+ALTER TABLE public.user_profiles DROP CONSTRAINT IF EXISTS user_profiles_id_fkey;
+
 -- 3. Create fresh, recursion-free policies
 CREATE POLICY "Allow select on user_profiles" ON user_profiles
   FOR SELECT USING (

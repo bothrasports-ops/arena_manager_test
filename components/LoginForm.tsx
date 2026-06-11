@@ -173,6 +173,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
             throw new Error(`No registered Staff profile matching Username '${safeAdminName}' was found. Please ensure the admin has registered your username first.`);
           }
 
+          // Case-insensitive verification that the staff member's venue name matches what they entered when signing in.
+          const expectedVenue = String(venueName || '').trim().toLowerCase();
+          const actualVenue = String(foundProfile.venue_name || '').trim().toLowerCase();
+          if (expectedVenue && actualVenue !== expectedVenue) {
+            await supabase.auth.signOut();
+            throw new Error(`The Venue Name you entered ('${venueName}') does not match the registered venue for staff '${safeAdminName}'. Please verify your Venue Name and try again.`);
+          }
+
           // 5. Connect the authenticated user's ID back to the pre-created profile row if it's currently empty or mismatches
           if (foundProfile.id !== authUser.id) {
             const { error: linkErr } = await supabase
@@ -325,9 +333,54 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
 
             <form onSubmit={handleAuth} className="space-y-6">
               {error && (
-                  <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl flex items-center gap-2 text-sm font-medium animate-in slide-in-from-top-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    {error}
+                  <div className="space-y-3 animate-in slide-in-from-top-2">
+                    <div className="bg-rose-50 border border-rose-100 text-rose-600 p-3 rounded-xl flex items-start gap-2 text-sm font-semibold">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">{error}</span>
+                        {error.toLowerCase().includes('email not confirmed') && (
+                            <p className="text-xs font-medium text-rose-500 mt-1 leading-normal">
+                              Your Supabase project specifies that new signup emails must be verified before logging in.
+                            </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {error.toLowerCase().includes('email not confirmed') && (
+                        <div className="bg-amber-50/70 border border-amber-200 text-amber-900 p-4 rounded-xl space-y-3 text-xs leading-normal">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                            <Info className="w-4 h-4 shrink-0" />
+                            <span>How to Resolve This in Supabase Dashboard</span>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="p-2 bg-white rounded-lg border border-amber-100 shadow-xs">
+                              <span className="font-extrabold text-amber-800 block mb-0.5">🚀 Option A: Disable Verification (Recommended for Dev)</span>
+                              <p className="text-[11px] text-slate-600 leading-relaxed">
+                                This lets you sign in instantly without verifying emails:
+                              </p>
+                              <ol className="list-decimal pl-4 mt-1 space-y-1 text-[10px] text-slate-500">
+                                <li>Go to your <strong>Supabase Dashboard</strong>.</li>
+                                <li>Click <strong>Authentication</strong> (key icon in left sidebar).</li>
+                                <li>Select <strong>Providers</strong> &gt; expand the <strong>Email</strong> row.</li>
+                                <li>Find <strong>Confirm Email</strong> and toggle it <strong>OFF</strong>.</li>
+                                <li>Click <strong>Save</strong> at the bottom.</li>
+                              </ol>
+                            </div>
+
+                            <div className="p-2 bg-white rounded-lg border border-amber-100 shadow-xs">
+                              <span className="font-extrabold text-amber-800 block mb-0.5">🔑 Option B: Manually Confirm Current User</span>
+                              <ol className="list-decimal pl-4 space-y-1 text-[10px] text-slate-500">
+                                <li>In your <strong>Supabase Dashboard</strong>, click <strong>Authentication</strong>.</li>
+                                <li>Go to <strong>Users</strong>.</li>
+                                <li>Find your registered email row (e.g., <code className="bg-slate-100 px-1 rounded font-mono">bothrasports@gmail.com</code>).</li>
+                                <li><strong>Scroll the table horizontally to the far right</strong> to find the <strong className="text-indigo-600 font-extrabold">Three Dots (...)</strong> actions menu.</li>
+                                <li>Click the <strong className="text-indigo-600 font-extrabold">Three Dots (...)</strong> actions button &gt; select <strong className="text-indigo-600 font-extrabold">Confirm User</strong>.</li>
+                              </ol>
+                            </div>
+                          </div>
+                        </div>
+                    )}
                   </div>
               )}
 
@@ -352,48 +405,48 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
                 </div>
               </div>
 
-              {isSignUp && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">Venue Name</label>
-                      <div className="relative group">
-                        <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                        <input
-                            required
-                            type="text"
-                            value={venueName}
-                            onChange={(e) => setVenueName(e.target.value)}
-                            className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-medium"
-                            placeholder="Pro Sports Arena"
-                        />
-                      </div>
+              {(isSignUp || (loginType === 'user' && !isSignUp)) && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                    <label className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">Venue Name</label>
+                    <div className="relative group">
+                      <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                      <input
+                          required
+                          type="text"
+                          value={venueName}
+                          onChange={(e) => setVenueName(e.target.value)}
+                          className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-medium"
+                          placeholder={loginType === 'user' ? 'Enter Registered Venue Name' : 'Pro Sports Arena'}
+                      />
                     </div>
+                  </div>
+              )}
 
-                    <div className="space-y-3">
-                      <label className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">Available Sports</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {Object.values(Sport).map(sport => (
-                            <button
-                                key={sport}
-                                type="button"
-                                onClick={() => toggleSport(sport)}
-                                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
-                                    selectedSports.includes(sport)
-                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                        : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
-                                }`}
-                            >
-                              {selectedSports.includes(sport) ? (
-                                  <CheckCircle2 className="w-4 h-4" />
-                              ) : (
-                                  <div className="w-4 h-4 rounded-full border-2 border-slate-200" />
-                              )}
-                              {sport}
-                            </button>
-                        ))}
-                      </div>
+              {isSignUp && (
+                  <div className="space-y-3">
+                    <label className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">Available Sports</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.values(Sport).map(sport => (
+                          <button
+                              key={sport}
+                              type="button"
+                              onClick={() => toggleSport(sport)}
+                              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                                  selectedSports.includes(sport)
+                                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                      : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+                              }`}
+                          >
+                            {selectedSports.includes(sport) ? (
+                                <CheckCircle2 className="w-4 h-4" />
+                            ) : (
+                                <div className="w-4 h-4 rounded-full border-2 border-slate-200" />
+                            )}
+                            {sport}
+                          </button>
+                      ))}
                     </div>
-                  </>
+                  </div>
               )}
 
               {(isSignUp || loginType === 'admin') && (
