@@ -4,6 +4,7 @@ import {
     UserPlus,
     Shield,
     Trash2,
+    User,
     Mail,
     Lock,
     Loader2,
@@ -70,7 +71,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
         setIsProcessing('add');
         try {
             const rawEmail = email.trim().toLowerCase();
-            const formattedEmail = rawEmail.includes('@') ? rawEmail : `${rawEmail}@venueiq.local`;
+            if (rawEmail.includes('@') || rawEmail.includes('.com')) {
+                throw new Error("Username should not contain '@' symbols or domain extensions like '.com'. Please enter a simple brand new username.");
+            }
+            const formattedEmail = `${rawEmail}@venueiq.local`;
 
             // Check if duplicate exists to give a clear, high-quality descriptive error message
             const { data: existing, error: checkErr } = await supabase
@@ -86,7 +90,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                 .from('user_profiles')
                 .insert({
                     email: formattedEmail,
-                    admin_name: rawEmail.includes('@') ? rawEmail.split('@')[0] : rawEmail,
                     role: role,
                     venue_id: currentProfile?.venue_id || currentProfile?.id,
                     venue_name: currentProfile?.venue_name || 'My Arena'
@@ -202,15 +205,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                 <form onSubmit={handleAddUser} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl max-w-xl mx-auto">
                     <div className="space-y-4">
                         <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Staff Username (or Email)</label>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Staff Username</label>
                             <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <input
                                     type="text"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     required
-                                    placeholder="e.g., john_staff or john@venueiq.com"
+                                    placeholder="e.g., john_staff"
                                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                                 />
                             </div>
@@ -261,7 +264,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                         <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                             <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">User Status</th>
-                            <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Email Address</th>
+                            <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Username</th>
                             <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">Permissions</th>
                             <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
                         </tr>
@@ -292,7 +295,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ currentProfile, onUpdat
                                         )}
                                     </td>
                                     <td className="px-6 py-4">
-                                        <p className="font-bold text-slate-900">{profile.admin_email}</p>
+                                        <p className="font-bold text-slate-900">
+                                            {profile.admin_email?.endsWith('@venueiq.local')
+                                                ? profile.admin_email.split('@')[0]
+                                                : profile.admin_email}
+                                        </p>
                                         {profile.admin_email === currentProfile?.admin_email && <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Current Session</span>}
                                     </td>
                                     <td className="px-6 py-4 text-center">

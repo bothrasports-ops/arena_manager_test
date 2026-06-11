@@ -667,7 +667,7 @@ const App: React.FC = () => {
   // Seamless route/tab-guard enforcing strict role permissions for non-admin profiles
   useEffect(() => {
     if (appState.profile && !isAdmin) {
-      const adminOnlyTabs = ['dashboard', 'finances', 'users', 'plans', 'inventory', 'platforms', 'expenses'];
+      const adminOnlyTabs = ['dashboard', 'finances', 'users', 'inventory', 'platforms', 'expenses'];
       if (adminOnlyTabs.includes(activeTab)) {
         setActiveTab('active');
         toast.error('Access restricted to administrators.');
@@ -834,6 +834,18 @@ const App: React.FC = () => {
                         label="Coaching"
                         active={activeTab === 'coaching'}
                     />
+                    <DropdownItem
+                        onClick={() => setActiveTab('plans')}
+                        icon={<PlusCircle className="w-4 h-4" />}
+                        label="Membership Plans"
+                        active={activeTab === 'plans'}
+                    />
+                    <DropdownItem
+                        onClick={() => setActiveTab('drinks')}
+                        icon={<ShoppingBag className="w-4 h-4" />}
+                        label="Drinks Sale"
+                        active={activeTab === 'drinks'}
+                    />
                     {isAdmin && (
                         <>
                           <DropdownMenu.Separator className="h-px bg-slate-100 my-1" />
@@ -842,12 +854,6 @@ const App: React.FC = () => {
                               icon={<Package className="w-4 h-4" />}
                               label="Inventory"
                               active={activeTab === 'inventory'}
-                          />
-                          <DropdownItem
-                              onClick={() => setActiveTab('plans')}
-                              icon={<PlusCircle className="w-4 h-4" />}
-                              label="Membership Plans"
-                              active={activeTab === 'plans'}
                           />
                           <DropdownItem
                               onClick={() => setActiveTab('users')}
@@ -941,6 +947,18 @@ const App: React.FC = () => {
                   label="Coaching"
               />
               <NavButton
+                  active={activeTab === 'plans'}
+                  onClick={() => setActiveTab('plans')}
+                  icon={<PlusCircle className="w-5 h-5" />}
+                  label="Membership Plans"
+              />
+              <NavButton
+                  active={activeTab === 'drinks'}
+                  onClick={() => setActiveTab('drinks')}
+                  icon={<ShoppingBag className="w-5 h-5" />}
+                  label="Drinks Sale"
+              />
+              <NavButton
                   active={activeTab === 'new'}
                   onClick={() => setActiveTab('new')}
                   icon={<PlusCircle className="w-5 h-5" />}
@@ -951,12 +969,6 @@ const App: React.FC = () => {
                   onClick={() => setActiveTab('list')}
                   icon={<List className="w-5 h-5" />}
                   label="All Bookings"
-              />
-              <NavButton
-                  active={activeTab === 'drinks'}
-                  onClick={() => setActiveTab('drinks')}
-                  icon={<ShoppingBag className="w-5 h-5" />}
-                  label="Drinks Sale"
               />
             </nav>
 
@@ -1024,7 +1036,7 @@ const App: React.FC = () => {
                             availableSports={appState.profile?.available_sports || []}
                         />
                     )}
-                    {activeTab === 'plans' && isAdmin && (
+                    {activeTab === 'plans' && (
                         <MembershipPlanManager
                             plans={appState.membershipPlans}
                             onUpdate={refreshData}
@@ -1110,7 +1122,6 @@ const App: React.FC = () => {
           <MobileNavButton active={activeTab === 'court_manager'} onClick={() => setActiveTab('court_manager')} icon={<Grid className="w-6 h-6" />} label="Courts" />
           <MobileNavButton active={activeTab === 'new'} onClick={() => setActiveTab('new')} icon={<PlusCircle className="w-6 h-6" />} label="New" />
           <MobileNavButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List className="w-6 h-6" />} label="All" />
-          <MobileNavButton active={activeTab === 'drinks'} onClick={() => setActiveTab('drinks')} icon={<ShoppingBag className="w-6 h-6" />} label="Drinks" />
         </nav>
         <div className="lg:hidden h-16" />
       </div>

@@ -34,8 +34,17 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
     setError(null);
     setLoading(true);
 
-    // If it's a full email, use it. Otherwise, assume it's a handle for the .local domain
     const safeAdminName = adminName || '';
+
+    // Validate that User/Staff role logins do not contain '@' or '.com'
+    if (loginType === 'user' && !isSignUp) {
+      if (safeAdminName.includes('@') || safeAdminName.includes('.com')) {
+        setError("Your username should not contain '@' symbols or domain extensions like '.com'. Please enter ONLY the simple username your Admin created for you.");
+        setLoading(false);
+        return;
+      }
+    }
+
     const nameOnly = safeAdminName.trim().toLowerCase().replace(/\s+/g, '');
     const loginEmail = safeAdminName.includes('@')
         ? safeAdminName.trim().toLowerCase()
@@ -140,34 +149,18 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
           }
 
           // 3. User is now authenticated, query their profile to verify registration and role
-          let profileRows: any[] | null = null;
-          let profileErr: any = null;
-
-          const { data: emailRows, error: emailFetchErr } = await supabase
+          const { data: profileRows, error: profileErr } = await supabase
               .from('user_profiles')
               .select('*')
               .in('email', [loginEmail, safeAdminName.trim().toLowerCase()]);
-
-          profileErr = emailFetchErr;
-          profileRows = emailRows;
-
-          // Fallback: if email query returned empty (RLS blocking pre-created row), try by auth UID
-          if (!profileErr && (!profileRows || profileRows.length === 0)) {
-            const { data: uidRows, error: uidErr } = await supabase
-                .from('user_profiles')
-                .select('*')
-                .eq('id', authUser.id);
-            if (!uidErr && uidRows && uidRows.length > 0) {
-              profileRows = uidRows;
-            }
-          }
 
           if (profileErr) {
             await supabase.auth.signOut();
             throw new Error(`Database verification failed: ${profileErr.message}`);
           }
 
-          const foundProfile = profileRows && profileRows.length > 0 ? profileRows[0] : null;
+          const hasProfile = profileRows && profileRows.length > 0;
+          const foundProfile = hasProfile ? profileRows[0] : null;
 
           // 4. If they do not have a registered profile or they are an admin/unlinked/deactivated, sign out and reject
           if (
