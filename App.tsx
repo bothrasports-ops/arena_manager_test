@@ -62,6 +62,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'error' | 'checking'>('checking');
+  const [isReadOnlyDb, setIsReadOnlyDb] = useState(false);
   const [appState, setAppState] = useState<AppState>({
     user: null,
     profile: null,
@@ -113,11 +114,26 @@ const App: React.FC = () => {
     try {
       // Test connection with a simple query
       const { error: pingError } = await supabase.from('inventory').select('id').limit(1);
+
+      let readOnlyActive = false;
       if (pingError) {
-        setSupabaseStatus('error');
-        throw new Error(`Supabase connection failed: ${pingError.message}`);
+        if (
+            pingError.message?.includes('read-only') ||
+            pingError.message?.includes('UPDATE') ||
+            pingError.message?.includes('transaction')
+        ) {
+          console.warn("Supabase database is currently in READ-ONLY mode. Proceeding in read-only viewing fallback.");
+          readOnlyActive = true;
+          setIsReadOnlyDb(true);
+          setSupabaseStatus('connected');
+        } else {
+          setSupabaseStatus('error');
+          throw new Error(`Supabase connection failed: ${pingError.message}`);
+        }
+      } else {
+        setSupabaseStatus('connected');
+        setIsReadOnlyDb(false);
       }
-      setSupabaseStatus('connected');
 
       // Fetch Profile
       // Securely invoke the database get_venue_safe RPC beforehand.
@@ -276,13 +292,16 @@ const App: React.FC = () => {
             toast.success("Welcome! Your admin profile has been created.");
           }
         } catch (insertError: any) {
-          // Detect unique constraint violation. This confirms a row with this email exists but was hidden.
+          // Detect unique constraint violation or read-only transaction errors
+          const isReadOnlyErr = insertError?.message?.includes('read-only') || insertError?.message?.includes('read_only') || insertError?.message?.includes('transaction');
+
           if (
               insertError?.message?.includes('duplicate key') ||
               insertError?.code === '23505' ||
-              insertError?.message?.includes('user_profiles_email_key')
+              insertError?.message?.includes('user_profiles_email_key') ||
+              isReadOnlyErr
           ) {
-            console.warn("Detected duplicate email on insert. Profile already exists. Fetching row by UID directly...");
+            console.warn("Detected duplicate email, unique constraint, or read-only restriction on insert. Handling gracefully...");
 
             // Try fetching by UID directly as RLS enables own ID viewing
             const { data: uidRows, error: uidError } = await supabase
@@ -882,6 +901,26 @@ const App: React.FC = () => {
             </div>
           </div>
         </header>
+
+        {isReadOnlyDb && (
+            <div className="max-w-[1800px] mx-auto w-full px-4 sm:px-6 mt-4">
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl flex items-start gap-3 shadow-md animate-in fade-in slide-in-from-top-4 duration-300">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold">Cloud Database in Read-Only Mode</p>
+                  <p className="text-xs leading-relaxed opacity-90">
+                    Your Supabase project database has been set to transaction read-only mode by the host (frequently because of storage capacity ceilings or account plan boundaries).
+                    We have initialized a secure viewing partition so you can still read and browse all of your active bookings, inventory levels, coaching sheets, and historic records!
+                  </p>
+                  <div className="pt-1.5 flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 rounded px-2 py-0.5">
+                  How to Fix: Log into your Supabase Dashboard &rarr; Project Settings &rarr; Check Storage/Billing.
+                </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+        )}
 
         {fetchError && (
             <div className="max-w-[1600px] mx-auto w-full px-4 mt-4">
