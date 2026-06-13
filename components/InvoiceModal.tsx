@@ -32,7 +32,9 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                                    }) => {
     if (!isOpen) return null;
 
-    const court = courts.find(c => c.id === booking.courtId);
+    const localStored = typeof window !== 'undefined' ? localStorage.getItem(`booking_courts_${booking.id}`) : null;
+    const bCourtIds: string[] = booking.courtIds || (localStored ? JSON.parse(localStored) : (booking.courtId ? [booking.courtId] : []));
+    const bookedCourts = courts.filter(c => bCourtIds.includes(c.id));
     const balanceDue = Math.max(0, booking.totalAmount - (booking.advancePaid || 0));
 
     const handlePrint = () => {
@@ -143,12 +145,19 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                     <Clock className="w-4 h-4 text-slate-400" />
                                     <span className="font-bold">{booking.bookingStartTime} - {booking.bookingEndTime} ({booking.totalHours} hrs)</span>
                                 </div>
-                                {court && (
+                                {bookedCourts.length > 0 ? (
                                     <div className="flex items-center gap-2 text-sm text-indigo-600">
-                                        <LayoutGrid className="w-4 h-4" />
-                                        <span className="font-bold">{court.name} ({booking.sport})</span>
+                                        <LayoutGrid className="w-4 h-4 text-slate-400" />
+                                        <span className="font-bold">
+                      {bookedCourts.map(c => c.name).join(', ')} ({booking.sport})
+                    </span>
                                     </div>
-                                )}
+                                ) : booking.courtId ? (
+                                    <div className="flex items-center gap-2 text-sm text-indigo-600">
+                                        <LayoutGrid className="w-4 h-4 text-slate-400" />
+                                        <span className="font-bold">Court ID: {booking.courtId.substring(0, 8)} ({booking.sport})</span>
+                                    </div>
+                                ) : null}
                             </div>
                         </div>
                     </div>

@@ -303,7 +303,9 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
             ) : (
                 <div className="grid grid-cols-1 gap-6">
                     {activeBookings.map(booking => {
-                        const court = courts.find(c => c.id === booking.courtId);
+                        const localStored = localStorage.getItem(`booking_courts_${booking.id}`);
+                        const bCourtIds: string[] = booking.courtIds || (localStored ? JSON.parse(localStored) : (booking.courtId ? [booking.courtId] : []));
+                        const bookedCourts = courts.filter(c => bCourtIds.includes(c.id));
                         const balanceDue = Math.max(0, booking.totalAmount - (booking.advancePaid || 0));
 
                         return (
@@ -316,9 +318,14 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
                                                 <p className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">
                                                     {booking.sport} &bull; {booking.platform}
                                                 </p>
-                                                {court && (
+                                                {bookedCourts.map(bc => (
+                                                    <p key={bc.id} className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">
+                                                        {bc.name}
+                                                    </p>
+                                                ))}
+                                                {bookedCourts.length === 0 && booking.courtId && (
                                                     <p className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">
-                                                        {court.name}
+                                                        Court ID: {booking.courtId.substring(0, 8)}
                                                     </p>
                                                 )}
                                                 <p className={`text-xs font-bold px-2 py-0.5 rounded-lg ${

@@ -40,6 +40,7 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
     }, [availableSports]);
     const [startTime, setStartTime] = useState('06:00');
     const [endTime, setEndTime] = useState('07:00');
+    const [newHourlyPrice, setNewHourlyPrice] = useState<string>('');
 
     // Edit states
     const [editingCourtId, setEditingCourtId] = useState<string | null>(null);
@@ -47,6 +48,7 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
     const [editSport, setEditSport] = useState<Sport>(Sport.PICKLEBALL);
     const [editStartTime, setEditStartTime] = useState('06:00');
     const [editEndTime, setEditEndTime] = useState('00:00');
+    const [editHourlyPrice, setEditHourlyPrice] = useState<string>('');
 
     const handleStartEdit = (court: Court) => {
         setEditingCourtId(court.id);
@@ -54,6 +56,7 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
         setEditSport(court.sport);
         setEditStartTime(court.start_time || '06:00');
         setEditEndTime(court.end_time || '00:00');
+        setEditHourlyPrice(String(court.hourly_price || '0'));
     };
 
     const handleSaveEdit = async (courtId: string) => {
@@ -63,6 +66,7 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
         }
 
         setIsSubmitting(true);
+        const hourlyVal = parseFloat(editHourlyPrice) || 0;
         try {
             const { error } = await supabase
                 .from('courts')
@@ -70,11 +74,32 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                     name: editName,
                     sport: editSport,
                     start_time: editStartTime,
-                    end_time: editEndTime
-                })
+                    end_time: editEndTime,
+                    hourly_price: hourlyVal
+                } as any)
                 .eq('id', courtId);
 
-            if (error) throw error;
+            if (error) {
+                if (error.message && (error.message.includes('hourly_price') || error.message.includes('schema cache'))) {
+                    console.warn("hourly_price column missing, updating locally in localStorage fallback");
+                    const { error: retryError } = await supabase
+                        .from('courts')
+                        .update({
+                            name: editName,
+                            sport: editSport,
+                            start_time: editStartTime,
+                            end_time: editEndTime
+                        })
+                        .eq('id', courtId);
+
+                    if (retryError) throw retryError;
+                } else {
+                    throw error;
+                }
+            }
+
+            // Save to local overlay
+            localStorage.setItem(`court_price_${courtId}`, hourlyVal.toString());
             toast.success("Court updated successfully");
             setEditingCourtId(null);
             await onUpdate();
@@ -95,11 +120,14 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
     const [selectedDate, setSelectedDate] = useState(today);
 
     const getDayBookings = (courtId: string) => {
-        return bookings.filter(b =>
-            b.courtId === courtId &&
-            b.bookingDate === selectedDate &&
-            b.status !== 'completed' // only show active/upcoming bookings
-        );
+        return bookings.filter(b => {
+            if (b.bookingDate !== selectedDate) return false;
+            if (b.status === 'completed') return false; // only show active/upcoming bookings
+
+            const localStored = typeof window !== 'undefined' ? localStorage.getItem(`booking_courts_${b.id}`) : null;
+            const bCourtIds: string[] = b.courtIds || (localStored ? JSON.parse(localStored) : (b.courtId ? [b.courtId] : []));
+            return bCourtIds.includes(courtId);
+        });
     };
 
     const isTimeBooked = (courtId: string, time24: string) => {
@@ -203,20 +231,48 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
         if (!newCourtName) return;
 
         setIsSubmitting(true);
+        const hourlyVal = parseFloat(newHourlyPrice) || 0;
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('courts')
                 .insert({
                     name: newCourtName,
                     sport: newCourtSport,
                     venue_id: venueId,
                     start_time: startTime,
-                    end_time: endTime
-                });
+                    end_time: endTime,
+                    hourly_price: hourlyVal
+                } as any)
+                .select();
 
-            if (error) throw error;
+            if (error) {
+                if (error.message && (error.message.includes('hourly_price') || error.message.includes('schema cache'))) {
+                    console.warn("hourly_price column missing, inserting locally in localStorage fallback");
+                    const { data: retryData, error: retryError } = await supabase
+                        .from('courts')
+                        .insert({
+                            name: newCourtName,
+                            sport: newCourtSport,
+                            venue_id: venueId,
+                            start_time: startTime,
+                            end_time: endTime
+                        })
+                        .select();
+
+                    if (retryError) throw retryError;
+                    if (retryData && retryData[0]) {
+                        localStorage.setItem(`court_price_${retryData[0].id}`, hourlyVal.toString());
+                    }
+                } else {
+                    throw error;
+                }
+            } else if (data && data[0]) {
+                localStorage.setItem(`court_price_${data[0].id}`, hourlyVal.toString());
+            }
+
             toast.success("Court added successfully");
             setNewCourtName('');
+            setNewHourlyPrice('');
             onUpdate();
         } catch (error: any) {
             toast.error(`Failed to add court: ${error.message}`);
@@ -267,7 +323,7 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
             </div>
 
             <form onSubmit={handleAddCourt} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                     <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Court Name / Number</label>
                         <input
@@ -313,6 +369,18 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold"
                         />
                     </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Hourly Price (₹)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={newHourlyPrice}
+                            onChange={(e) => setNewHourlyPrice(e.target.value)}
+                            placeholder="500"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold"
+                        />
+                    </div>
                 </div>
                 <button
                     type="submit"
@@ -348,7 +416,7 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                                             <div className="space-y-2">
                                                 <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Court Name / Number</label>
                                                 <input
@@ -387,6 +455,18 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                                                     type="time"
                                                     value={editEndTime}
                                                     onChange={(e) => setEditEndTime(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold text-slate-800"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Hourly Price (₹)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="any"
+                                                    value={editHourlyPrice}
+                                                    onChange={(e) => setEditHourlyPrice(e.target.value)}
+                                                    placeholder="500"
                                                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-base font-bold text-slate-800"
                                                 />
                                             </div>
@@ -437,9 +517,15 @@ const CourtsManager: React.FC<CourtsManagerProps> = ({ courts, bookings, onUpdat
                                         <h3 className="text-3xl font-black text-slate-900">{court.name}</h3>
                                         <p className="text-indigo-500 font-bold text-sm mt-1.5">{court.sport}</p>
 
-                                        <div className="mt-4 flex items-center gap-2 text-slate-500">
-                                            <Clock className="w-5 h-5" />
-                                            <span className="text-base font-bold">{court.start_time || '00:00'} - {court.end_time || '00:00'}</span>
+                                        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-slate-500 font-bold">
+                                            <div className="flex items-center gap-2">
+                                                <Clock className="w-5 h-5 text-slate-400" />
+                                                <span className="text-base font-bold">{court.start_time || '00:00'} - {court.end_time || '00:00'}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-xl text-sm">
+                                                <span className="font-extrabold">Price:</span>
+                                                <span className="font-black">₹{court.hourly_price || 0}/hr</span>
+                                            </div>
                                         </div>
 
                                         {renderTimeline(court)}

@@ -20,7 +20,9 @@ import {
   Printer,
   Edit2,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { Booking, Platform, DrinkInventoryItem, Sport, Court, BookingType, UserRole, PaymentMethod } from '../types';
 import InvoiceModal from './InvoiceModal';
@@ -59,6 +61,291 @@ const BookingList: React.FC<BookingListPropsUI> = ({
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [completingBookingId, setCompletingBookingId] = useState<string | null>(null);
   const [finalPaymentMethod, setFinalPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
+
+  const [extraHoursForm, setExtraHoursForm] = useState<{
+    bookingId: string | null;
+    duration: number;
+    amount: number | '';
+  }>({
+    bookingId: null,
+    duration: 0.5,
+    amount: 0
+  });
+
+  const [editedSchedule, setEditedSchedule] = useState<{
+    bookingId: string | null;
+    date: string;
+    startTime: string;
+    endTime: string;
+    bookingAmount: number;
+  }>({
+    bookingId: null,
+    date: '',
+    startTime: '',
+    endTime: '',
+    bookingAmount: 0
+  });
+
+  const calculateHoursVal = (start: string, end: string) => {
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+    if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return 0;
+    let diff = (endH + endM / 60) - (startH + startM / 60);
+    if (diff < 0) diff += 24;
+    return Number(diff.toFixed(2));
+  };
+
+  const handleScheduleFieldChange = (booking: Booking, field: 'date' | 'startTime' | 'endTime' | 'bookingAmount', value: any) => {
+    const current = editedSchedule.bookingId === booking.id ? editedSchedule : {
+      bookingId: booking.id,
+      date: booking.bookingDate,
+      startTime: booking.bookingStartTime,
+      endTime: booking.bookingEndTime,
+      bookingAmount: booking.bookingAmount
+    };
+
+    const updated = {
+      ...current,
+      [field]: value
+    };
+
+    if (field === 'startTime' || field === 'endTime') {
+      const hours = calculateHoursVal(
+          field === 'startTime' ? value : current.startTime,
+          field === 'endTime' ? value : current.endTime
+      );
+
+      const localStored = localStorage.getItem(`booking_courts_${booking.id}`);
+      const bCourtIds = booking.courtIds || (localStored ? JSON.parse(localStored) : (booking.courtId ? [booking.courtId] : []));
+
+      let sumRate = 0;
+      bCourtIds.forEach((id: string) => {
+        const c = courts.find(court => court.id === id);
+        sumRate += Number(c?.hourly_price || 0);
+      });
+
+      updated.bookingAmount = Number((sumRate * hours).toFixed(2));
+    }
+
+    setEditedSchedule(updated);
+  };
+
+  const handleSaveSchedule = async (booking: Booking) => {
+    const current = editedSchedule.bookingId === booking.id ? editedSchedule : {
+      bookingId: booking.id,
+      date: booking.bookingDate,
+      startTime: booking.bookingStartTime,
+      endTime: booking.bookingEndTime,
+      bookingAmount: booking.bookingAmount
+    };
+
+    setIsUpdating(booking.id);
+    try {
+      const hours = calculateHoursVal(current.startTime, current.endTime);
+      if (hours <= 0) {
+        toast.error("Invalid duration. End time must be after start time.");
+        return;
+      }
+
+      const newTotalHours = hours + (booking.extraHours?.duration || 0);
+
+      const drinksTotal = booking.selectedDrinks.reduce((acc, sd) => acc + (Number(sd.quantity || 0) * Number(sd.priceAtTime || 0)), 0);
+      const newTotalAmount = Number(current.bookingAmount) + (booking.extraHours?.amount || 0) + drinksTotal;
+
+      const { error } = await supabase
+          .from('bookings')
+          .update({
+            booking_date: current.date,
+            booking_start_time: current.startTime,
+            booking_end_time: current.endTime,
+            total_hours: newTotalHours,
+            booking_amount: Number(current.bookingAmount),
+            total_amount: newTotalAmount
+          })
+          .eq('id', booking.id);
+
+      if (error) throw error;
+
+      toast.success("Booking date & time updated successfully!");
+      setEditedSchedule({ bookingId: null, date: '', startTime: '', endTime: '', bookingAmount: 0 });
+      if (onUpdate) await onUpdate();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Failed to update booking time: ${error.message}`);
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const calculateExtraHoursAmount = (booking: Booking, duration: number) => {
+    const localStored = localStorage.getItem(`booking_courts_${booking.id}`);
+    const bCourtIds = booking.courtIds || (localStored ? JSON.parse(localStored) : (booking.courtId ? [booking.courtId] : []));
+
+    let sumRate = 0;
+    bCourtIds.forEach((id: string) => {
+      const c = courts.find(court => court.id === id);
+      sumRate += Number(c?.hourly_price || 0);
+    });
+    return Number((sumRate * duration).toFixed(2));
+  };
+
+  const handleUpdateExtraHours = async (booking: Booking) => {
+    if (!extraHoursForm.bookingId) return;
+
+    setIsUpdating(booking.id);
+    try {
+      const duration = Number(extraHoursForm.duration);
+      const amount = Number(extraHoursForm.amount) || 0;
+
+      // Calculate new end time
+      const [h, m] = booking.bookingEndTime.split(':').map(Number);
+      let totalMinutes = h * 60 + m + (duration * 60);
+      const newH = Math.floor(totalMinutes / 60) % 24;
+      const newM = totalMinutes % 60;
+      const newEndTime = `${newH.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}`;
+
+      const newTotalHours = (Number(booking.totalHours) || 0) + duration;
+      const newTotalAmount = (Number(booking.totalAmount) || 0) + amount;
+
+      const { error } = await supabase
+          .from('bookings')
+          .update({
+            extra_hours_enabled: true,
+            extra_hours_duration: (booking.extraHours?.duration || 0) + duration,
+            extra_hours_amount: (booking.extraHours?.amount || 0) + amount,
+            booking_end_time: newEndTime,
+            total_hours: newTotalHours,
+            total_amount: newTotalAmount
+          })
+          .eq('id', booking.id);
+
+      if (error) throw error;
+
+      toast.success(`Added ${duration} extra hours to ${booking.customerName}`);
+      setExtraHoursForm({ bookingId: null, duration: 0.5, amount: 0 });
+      if (onUpdate) await onUpdate();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Failed to add extra hours: ${error.message}`);
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleAddDrink = async (booking: Booking, drinkId: string) => {
+    setIsUpdating(booking.id);
+    try {
+      const drink = inventory.find(d => d.id === drinkId);
+      if (!drink) return;
+      if (drink.stockQuantity <= 0) {
+        toast.error(`${drink.name} is out of stock`);
+        return;
+      }
+
+      // Check if drink already in booking
+      const existing = booking.selectedDrinks.find(sd => sd.drinkId === drinkId);
+
+      if (existing) {
+        // Update quantity
+        const { error } = await supabase
+            .from('booking_drinks')
+            .update({ quantity: (Number(existing.quantity) || 0) + 1 })
+            .eq('booking_id', booking.id)
+            .eq('drink_id', drinkId);
+        if (error) throw error;
+      } else {
+        // Insert new
+        const { error } = await supabase
+            .from('booking_drinks')
+            .insert({
+              booking_id: booking.id,
+              drink_id: drinkId,
+              quantity: 1,
+              price_at_time: drink.price
+            });
+        if (error) throw error;
+      }
+
+      // Update inventory
+      const { error: invError } = await supabase
+          .from('inventory')
+          .update({ stock_quantity: drink.stockQuantity - 1 })
+          .eq('id', drinkId);
+      if (invError) throw invError;
+
+      // Update total amount in booking
+      const { error: updateBookingError } = await supabase
+          .from('bookings')
+          .update({
+            total_amount: booking.totalAmount + drink.price
+          })
+          .eq('id', booking.id);
+      if (updateBookingError) throw updateBookingError;
+
+      toast.success(`Allocated ${drink.name} to ${booking.customerName}`);
+      if (onUpdate) await onUpdate();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Update failed: ${error.message}`);
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleRemoveDrink = async (booking: Booking, drinkId: string) => {
+    setIsUpdating(booking.id);
+    try {
+      const drink = inventory.find(d => d.id === drinkId);
+      if (!drink) return;
+
+      const existing = booking.selectedDrinks.find(sd => sd.drinkId === drinkId);
+      if (!existing || Number(existing.quantity || 0) <= 0) return;
+
+      const newQty = (Number(existing.quantity) || 0) - 1;
+
+      if (newQty > 0) {
+        // Update quantity
+        const { error } = await supabase
+            .from('booking_drinks')
+            .update({ quantity: newQty })
+            .eq('booking_id', booking.id)
+            .eq('drink_id', drinkId);
+        if (error) throw error;
+      } else {
+        // Delete item record
+        const { error } = await supabase
+            .from('booking_drinks')
+            .delete()
+            .eq('booking_id', booking.id)
+            .eq('drink_id', drinkId);
+        if (error) throw error;
+      }
+
+      // Restore 1 item back to stock
+      const { error: invError } = await supabase
+          .from('inventory')
+          .update({ stock_quantity: drink.stockQuantity + 1 })
+          .eq('id', drinkId);
+      if (invError) throw invError;
+
+      // Update total amount in booking
+      const { error: updateBookingError } = await supabase
+          .from('bookings')
+          .update({
+            total_amount: Math.max(0, booking.totalAmount - drink.price)
+          })
+          .eq('id', booking.id);
+      if (updateBookingError) throw updateBookingError;
+
+      toast.success(`Removed 1 ${drink.name} from ${booking.customerName}`);
+      if (onUpdate) await onUpdate();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Update failed: ${error.message}`);
+    } finally {
+      setIsUpdating(null);
+    }
+  };
 
   const handleMarkCompleted = async (booking: Booking, fpm?: PaymentMethod) => {
     setIsUpdating(booking.id);
@@ -223,7 +510,9 @@ const BookingList: React.FC<BookingListPropsUI> = ({
               </div>
           ) : (
               filteredBookings.map((booking) => {
-                const court = courts.find(c => c.id === booking.courtId);
+                const localStored = localStorage.getItem(`booking_courts_${booking.id}`);
+                const bCourtIds: string[] = booking.courtIds || (localStored ? JSON.parse(localStored) : (booking.courtId ? [booking.courtId] : []));
+                const bookedCourts = courts.filter(c => bCourtIds.includes(c.id));
                 return (
                     <div
                         key={booking.id}
@@ -250,9 +539,14 @@ const BookingList: React.FC<BookingListPropsUI> = ({
                               <span className={`text-[10px] px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 uppercase tracking-tighter`}>
                           {booking.sport}
                         </span>
-                              {court && (
+                              {bookedCourts.map(bc => (
+                                  <span key={bc.id} className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 uppercase tracking-tighter">
+                            {bc.name}
+                          </span>
+                              ))}
+                              {bookedCourts.length === 0 && booking.courtId && (
                                   <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 uppercase tracking-tighter">
-                            {court.name}
+                            Court ID: {booking.courtId.substring(0, 8)}
                           </span>
                               )}
                               <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase tracking-tighter ${
@@ -496,6 +790,244 @@ const BookingList: React.FC<BookingListPropsUI> = ({
                                 )}
                               </div>
                             </div>
+
+                            {isAdmin && (
+                                <div className="mt-6 pt-6 border-t border-slate-200 grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
+                                  {/* Modify Booking Schedule & Price card */}
+                                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Calendar className="w-4 h-4 text-emerald-500" />
+                                        Modify Schedule & Price
+                                      </h4>
+                                      {editedSchedule.bookingId === booking.id && (
+                                          <button
+                                              onClick={() => setEditedSchedule({ bookingId: null, date: '', startTime: '', endTime: '', bookingAmount: 0 })}
+                                              className="text-[10px] font-bold text-rose-500 hover:text-rose-600"
+                                          >
+                                            Reset
+                                          </button>
+                                      )}
+                                    </div>
+
+                                    <div className="space-y-3">
+                                      {/* Date input */}
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">Booking Date</label>
+                                        <input
+                                            type="date"
+                                            value={editedSchedule.bookingId === booking.id ? editedSchedule.date : booking.bookingDate}
+                                            onChange={(e) => handleScheduleFieldChange(booking, 'date', e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                                        />
+                                      </div>
+
+                                      {/* Time inputs row */}
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">Start Time</label>
+                                          <input
+                                              type="time"
+                                              value={editedSchedule.bookingId === booking.id ? editedSchedule.startTime : booking.bookingStartTime}
+                                              onChange={(e) => handleScheduleFieldChange(booking, 'startTime', e.target.value)}
+                                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">End Time</label>
+                                          <input
+                                              type="time"
+                                              value={editedSchedule.bookingId === booking.id ? editedSchedule.endTime : booking.bookingEndTime}
+                                              onChange={(e) => handleScheduleFieldChange(booking, 'endTime', e.target.value)}
+                                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {/* Base amount input */}
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block ml-1">Base Price (₹)</label>
+                                        <div className="relative">
+                                          <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+                                          <input
+                                              type="number"
+                                              min="0"
+                                              value={editedSchedule.bookingId === booking.id ? editedSchedule.bookingAmount : booking.bookingAmount}
+                                              onChange={(e) => handleScheduleFieldChange(booking, 'bookingAmount', Number(e.target.value))}
+                                              className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
+                                              placeholder="Base Price"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {/* Submit Button */}
+                                      <button
+                                          onClick={() => handleSaveSchedule(booking)}
+                                          disabled={isUpdating === booking.id}
+                                          className="w-full mt-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                                      >
+                                        {isUpdating === booking.id ? (
+                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                        )}
+                                        Save Schedule Changes
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Extra Duration allocation */}
+                                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Clock className="w-4 h-4 text-orange-500" />
+                                        Add Extra Duration
+                                      </h4>
+                                      {extraHoursForm.bookingId === booking.id && (
+                                          <button
+                                              onClick={() => setExtraHoursForm({ bookingId: null, duration: 0.5, amount: 0 })}
+                                              className="text-[10px] font-bold text-rose-500 hover:text-rose-600"
+                                          >
+                                            Cancel
+                                          </button>
+                                      )}
+                                    </div>
+
+                                    <div className="flex flex-col gap-3">
+                                      <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                              const val = calculateExtraHoursAmount(booking, 0.5);
+                                              setExtraHoursForm({ bookingId: booking.id, duration: 0.5, amount: val });
+                                            }}
+                                            className={`flex-1 py-3 px-3 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all ${
+                                                extraHoursForm.bookingId === booking.id && extraHoursForm.duration === 0.5
+                                                    ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm ring-1 ring-orange-100'
+                                                    : 'bg-white border-slate-200 text-slate-500 hover:border-orange-200 hover:bg-orange-50/30'
+                                            }`}
+                                        >
+                                          <Clock className="w-4 h-4" /> <span className="font-extrabold">+30m</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                              const val = calculateExtraHoursAmount(booking, 1);
+                                              setExtraHoursForm({ bookingId: booking.id, duration: 1, amount: val });
+                                            }}
+                                            className={`flex-1 py-3 px-3 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all ${
+                                                extraHoursForm.bookingId === booking.id && extraHoursForm.duration === 1
+                                                    ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm ring-1 ring-orange-100'
+                                                    : 'bg-white border-slate-200 text-slate-500 hover:border-orange-200 hover:bg-orange-50/30'
+                                            }`}
+                                        >
+                                          <Clock className="w-4 h-4" /> <span className="font-extrabold">+1h</span>
+                                        </button>
+                                      </div>
+
+                                      {extraHoursForm.bookingId === booking.id && (
+                                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3 animate-in slide-in-from-top-2">
+                                            <div className="flex flex-col gap-1.5">
+                                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Additional Cost Amount (₹)</label>
+                                              <div className="relative">
+                                                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-orange-400" />
+                                                <input
+                                                    autoFocus
+                                                    type="number"
+                                                    min="0"
+                                                    value={extraHoursForm.amount}
+                                                    onChange={(e) => setExtraHoursForm(prev => ({ ...prev, amount: e.target.value === '' ? '' : Number(e.target.value) }))}
+                                                    className="w-full pl-8 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-black outline-none focus:ring-2 focus:ring-orange-500 text-slate-700"
+                                                    placeholder="e.g. 250"
+                                                />
+                                              </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleUpdateExtraHours(booking)}
+                                                disabled={isUpdating === booking.id || extraHoursForm.amount === ''}
+                                                className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-black rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                                            >
+                                              {isUpdating === booking.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                                              Apply Extra Time
+                                            </button>
+                                          </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Allocate Item / Drink */}
+                                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                                      <Package className="w-4 h-4 text-indigo-500" />
+                                      Allocate Items & Drinks
+                                    </h4>
+                                    <div className="max-h-60 overflow-y-auto pr-1 space-y-1">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {inventory.filter(item => {
+                                          const currentQty = booking.selectedDrinks?.find(sd => sd.drinkId === item.id)?.quantity || 0;
+                                          return item.stockQuantity > 0 || currentQty > 0;
+                                        }).map(item => {
+                                          const currentQty = booking.selectedDrinks?.find(sd => sd.drinkId === item.id)?.quantity || 0;
+                                          return (
+                                              <div
+                                                  key={item.id}
+                                                  className="flex items-center justify-between p-2 bg-slate-50 border border-slate-100 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all group relative"
+                                              >
+                                                <div className="flex items-center gap-2 overflow-hidden flex-1 select-none">
+                                                  <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden text-[10px] text-slate-400 border border-slate-100">
+                                                    {item.imageUrl ? (
+                                                        <img src={item.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                                    ) : (
+                                                        <Package className="w-4 h-4" />
+                                                    )}
+                                                  </div>
+                                                  <div className="text-left overflow-hidden">
+                                                    <p className="text-[10px] font-bold text-slate-900 truncate">{item.name}</p>
+                                                    <p className="text-[9px] text-indigo-500 font-black">₹{item.price}</p>
+                                                  </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 shrink-0 z-10">
+                                                  {currentQty > 0 && (
+                                                      <button
+                                                          type="button"
+                                                          disabled={isUpdating === booking.id}
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleRemoveDrink(booking, item.id);
+                                                          }}
+                                                          className="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 flex items-center justify-center transition-all disabled:opacity-50 border border-rose-100"
+                                                          title="Remove one"
+                                                      >
+                                                        <Minus className="w-3 h-3" />
+                                                      </button>
+                                                  )}
+
+                                                  {currentQty > 0 && (
+                                                      <span className="text-xs font-black text-slate-700 min-w-[12px] text-center">
+                                          {currentQty}
+                                        </span>
+                                                  )}
+
+                                                  <button
+                                                      type="button"
+                                                      disabled={isUpdating === booking.id || item.stockQuantity <= 0}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleAddDrink(booking, item.id);
+                                                      }}
+                                                      className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center justify-center transition-all disabled:opacity-50 border border-indigo-100"
+                                                      title="Add one"
+                                                  >
+                                                    <Plus className="w-3 h-3" />
+                                                  </button>
+                                                </div>
+                                              </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                            )}
                           </div>
                       )}
                     </div>
