@@ -59,7 +59,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
     }
   }, [availableSports]);
 
-  const [courtId, setCourtId] = useState<string>(initialData?.courtId || courts[0]?.id || '');
+  const [courtIds, setCourtIds] = useState<string[]>(initialData?.courtId ? [initialData.courtId] : (courts[0]?.id ? [courts[0].id] : []));
   const [paymentStatus, setPaymentStatus] = useState<'prepaid' | 'to_be_paid' | 'partially_paid'>('to_be_paid');
   const [advancePaid, setAdvancePaid] = useState<number | ''>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
@@ -83,7 +83,21 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
   const [bookingEndTime, setBookingEndTime] = useState(getInitialEndTime(initialData?.startTime || '10:00'));
   const [bookingAmount, setBookingAmount] = useState<number | ''>(0);
 
-  const selectedCourt = useMemo(() => courts.find(c => c.id === courtId), [courts, courtId]);
+  const selectedCourt = useMemo(() => courts.find(c => courtIds.includes(c.id)), [courts, courtIds]);
+
+  React.useEffect(() => {
+    const sportCourts = courts.filter(c => c.sport === sport);
+    if (sportCourts.length > 0) {
+      const initCourtMatches = initialData?.courtId ? courts.find(c => c.id === initialData.courtId)?.sport === sport : false;
+      if (initCourtMatches && initialData?.courtId) {
+        setCourtIds([initialData.courtId]);
+      } else {
+        setCourtIds([sportCourts[0].id]);
+      }
+    } else {
+      setCourtIds([]);
+    }
+  }, [sport, courts]);
 
   const timeSlots = useMemo(() => {
     const slots = [];
@@ -141,52 +155,118 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
     return Number(calculateHours(bookingStartTime, bookingEndTime).toFixed(2));
   }, [bookingStartTime, bookingEndTime, bookingType]);
 
+  const autoBookingAmount = useMemo(() => {
+    if (bookingType !== BookingType.COURT || courtIds.length === 0) return 0;
+    let sumRate = 0;
+    courtIds.forEach(id => {
+      const c = courts.find(court => court.id === id);
+      sumRate += Number(c?.hourly_price || 0);
+    });
+    return Number((sumRate * totalHours).toFixed(2));
+  }, [courtIds, totalHours, bookingType, courts]);
+
+  React.useEffect(() => {
+    if (bookingType === BookingType.COURT && autoBookingAmount > 0) {
+      setBookingAmount(autoBookingAmount);
+    }
+  }, [autoBookingAmount, bookingType]);
+
   const totalAmount = useMemo(() => {
     return Number(bookingAmount) || 0;
   }, [bookingAmount]);
 
   const executeBookingCreation = async () => {
-    const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          venue_id: venueId,
-          customer_name: customerName,
-          phone_number: phoneNumber,
-          platform: platform,
-          booking_type: bookingType,
-          membership_id: null,
-          coaching_fee: null,
-          sport: sport,
-          booking_date: bookingDate,
-          booking_start_time: bookingType === BookingType.COURT ? bookingStartTime : '10:00',
-          booking_end_time: bookingType === BookingType.COURT ? bookingEndTime : '11:00',
-          total_hours: totalHours,
-          booking_amount: Number(bookingAmount) || 0,
-          extra_hours_enabled: false,
-          extra_hours_duration: 0,
-          extra_hours_amount: 0,
-          total_amount: totalAmount,
-          court_id: courtId || null,
-          payment_status: paymentStatus,
-          advance_paid: Number(advancePaid) || 0,
-          payment_method: paymentStatus !== 'to_be_paid' ? paymentMethod : null,
-          status: 'active'
-        })
-        .select()
-        .single();
+    const pAmount = Number(bookingAmount) || 0;
+    const firstCourt = courtIds[0] || null;
 
-    if (bookingError) throw bookingError;
-    if (!bookingData) throw new Error("Booking created but no data returned from database.");
+    try {
+      const { data: bookingData, error: bookingError } = await supabase
+          .from('bookings')
+          .insert({
+            venue_id: venueId,
+            customer_name: customerName,
+            phone_number: phoneNumber,
+            platform: platform,
+            booking_type: bookingType,
+            membership_id: null,
+            coaching_fee: null,
+            sport: sport,
+            booking_date: bookingDate,
+            booking_start_time: bookingType === BookingType.COURT ? bookingStartTime : '10:00',
+            booking_end_time: bookingType === BookingType.COURT ? bookingEndTime : '11:00',
+            total_hours: totalHours,
+            booking_amount: pAmount,
+            extra_hours_enabled: false,
+            extra_hours_duration: 0,
+            extra_hours_amount: 0,
+            total_amount: pAmount,
+            court_id: firstCourt,
+            court_ids: courtIds,
+            payment_status: paymentStatus,
+            advance_paid: Number(advancePaid) || 0,
+            payment_method: paymentStatus !== 'to_be_paid' ? paymentMethod : null,
+            status: 'active'
+          } as any)
+          .select()
+          .single();
 
-    setCustomerName('');
-    setPhoneNumber('');
-    setBookingDate(getLocalDateString());
-    setBookingAmount(0);
-    setAdvancePaid(0);
-    setPaymentStatus('to_be_paid');
-    setConflicts([]);
-    onSave();
-    toast.success("Entry saved successfully!");
+      if (bookingError) {
+        if (bookingError.message && (bookingError.message.includes('court_ids') || bookingError.message.includes('schema cache'))) {
+          console.warn("court_ids column missing, falling back to court_id insert and local storage cataloging");
+          const { data: retryData, error: retryError } = await supabase
+              .from('bookings')
+              .insert({
+                venue_id: venueId,
+                customer_name: customerName,
+                phone_number: phoneNumber,
+                platform: platform,
+                booking_type: bookingType,
+                membership_id: null,
+                coaching_fee: null,
+                sport: sport,
+                booking_date: bookingDate,
+                booking_start_time: bookingType === BookingType.COURT ? bookingStartTime : '10:00',
+                booking_end_time: bookingType === BookingType.COURT ? bookingEndTime : '11:00',
+                total_hours: totalHours,
+                booking_amount: pAmount,
+                extra_hours_enabled: false,
+                extra_hours_duration: 0,
+                extra_hours_amount: 0,
+                total_amount: pAmount,
+                court_id: firstCourt,
+                payment_status: paymentStatus,
+                advance_paid: Number(advancePaid) || 0,
+                payment_method: paymentStatus !== 'to_be_paid' ? paymentMethod : null,
+                status: 'active'
+              })
+              .select()
+              .single();
+
+          if (retryError) throw retryError;
+          if (retryData) {
+            localStorage.setItem(`booking_courts_${retryData.id}`, JSON.stringify(courtIds));
+          }
+        } else {
+          throw bookingError;
+        }
+      } else if (bookingData) {
+        localStorage.setItem(`booking_courts_${bookingData.id}`, JSON.stringify(courtIds));
+      }
+
+      setCustomerName('');
+      setPhoneNumber('');
+      setBookingDate(getLocalDateString());
+      setBookingAmount(0);
+      setAdvancePaid(0);
+      setPaymentStatus('to_be_paid');
+      setConflicts([]);
+      onSave();
+      toast.success("Entry saved successfully!");
+    } catch (err: any) {
+      console.error("Error creating booking:", err);
+      toast.error(err.message || "Failed to create booking.");
+      setIsSubmitting(false);
+    }
   };
 
   const handleOverride = async () => {
@@ -229,8 +309,8 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
       return;
     }
 
-    if (bookingType === BookingType.COURT && !courtId) {
-      toast.error("Please select a court.");
+    if (bookingType === BookingType.COURT && courtIds.length === 0) {
+      toast.error("Please select at least one court.");
       return;
     }
 
@@ -255,24 +335,28 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
           return;
         }
 
-        // Query active/completed bookings for this court and date to detect overlapping slots
+        // Query active/completed bookings for this date to detect overlapping slots across selected courts
         const { data: existingBookings, error: checkError } = await supabase
             .from('bookings')
-            .select('id, customer_name, booking_start_time, booking_end_time, status')
-            .eq('court_id', courtId)
+            .select('id, customer_name, booking_start_time, booking_end_time, status, court_id, court_ids')
             .eq('booking_date', bookingDate);
 
         if (checkError) throw checkError;
 
-        const overlappingBookings = existingBookings?.filter((b: any) => {
+        const overlappingBookings = (existingBookings || []).filter((b: any) => {
           if (b.status === 'cancelled') return false;
+
+          const localStored = localStorage.getItem(`booking_courts_${b.id}`);
+          const courtsAllocated = b.court_ids || (localStored ? JSON.parse(localStored) : (b.court_id ? [b.court_id] : []));
+
+          const sharesCourt = courtsAllocated.some((id: string) => courtIds.includes(id));
+          if (!sharesCourt) return false;
 
           const exStart = timeToMinutes(b.booking_start_time);
           const exEnd = timeToMinutes(b.booking_end_time, true);
 
-          // Standard overlap check: S1 < E2 and S2 < E1
           return newStart < exEnd && exStart < newEnd;
-        }) || [];
+        });
 
         if (overlappingBookings.length > 0) {
           setConflicts(overlappingBookings);
@@ -384,22 +468,36 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSave, inventory, courts, me
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Select Court</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {courts.filter(c => c.sport === sport).map(court => (
-                        <button
-                            key={court.id}
-                            type="button"
-                            onClick={() => setCourtId(court.id)}
-                            className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
-                                courtId === court.id
-                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
-                                    : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
-                            }`}
-                        >
-                          {court.name}
-                        </button>
-                    ))}
+                  <label className="text-xs font-bold text-slate-500 uppercase">Select Court(s)</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {courts.filter(c => c.sport === sport).map(court => {
+                      const isSelected = courtIds.includes(court.id);
+                      return (
+                          <button
+                              key={court.id}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  if (courtIds.length > 1) {
+                                    setCourtIds(courtIds.filter(id => id !== court.id));
+                                  } else {
+                                    toast.warning("At least one court must be selected.");
+                                  }
+                                } else {
+                                  setCourtIds([...courtIds, court.id]);
+                                }
+                              }}
+                              className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
+                                  isSelected
+                                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-md font-extrabold'
+                                      : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
+                              }`}
+                          >
+                            <span>{court.name}</span>
+                            <span className={`text-[9px] ${isSelected ? 'text-indigo-200' : 'text-slate-400 font-medium'}`}>₹{court.hourly_price || 0}/hr</span>
+                          </button>
+                      );
+                    })}
                     {courts.filter(c => c.sport === sport).length === 0 && (
                         <p className="col-span-3 text-[10px] text-slate-400 italic">No courts found for this sport</p>
                     )}

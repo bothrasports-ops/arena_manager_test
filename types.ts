@@ -59,6 +59,7 @@ export interface Booking {
   totalHours: number;
   sport: Sport;
   courtId?: string;
+  courtIds?: string[]; // Multiple selected court IDs
   paymentStatus: 'prepaid' | 'to_be_paid' | 'partially_paid';
   advancePaid: number;
   balancePaid?: number;
@@ -74,6 +75,18 @@ export interface Court {
   venueId: string;
   start_time: string;
   end_time: string;
+  hourly_price?: number; // Hourly charge rate for court
+}
+
+export interface AttendanceRecord {
+  id: string;
+  venueId: string;
+  memberId?: string;
+  studentId?: string;
+  date: string; // YYYY-MM-DD format
+  status: 'present' | 'absent';
+  type: 'member' | 'student';
+  created_at?: string;
 }
 
 export interface MembershipPlanDefinition {

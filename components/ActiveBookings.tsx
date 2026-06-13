@@ -66,6 +66,18 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
         });
     }, [bookings, now]);
 
+    const calculateExtraHoursAmount = (booking: Booking, duration: number) => {
+        const localStored = localStorage.getItem(`booking_courts_${booking.id}`);
+        const bCourtIds = booking.courtIds || (localStored ? JSON.parse(localStored) : (booking.courtId ? [booking.courtId] : []));
+
+        let sumRate = 0;
+        bCourtIds.forEach((id: string) => {
+            const c = courts.find(court => court.id === id);
+            sumRate += Number(c?.hourly_price || 0);
+        });
+        return Number((sumRate * duration).toFixed(2));
+    };
+
     const handleUpdateExtraHours = async (booking: Booking) => {
         if (!extraHoursForm.bookingId) return;
 
@@ -410,7 +422,10 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
                                         <div className="flex flex-col gap-3">
                                             <div className="flex gap-2">
                                                 <button
-                                                    onClick={() => setExtraHoursForm({ bookingId: booking.id, duration: 0.5, amount: '' })}
+                                                    onClick={() => {
+                                                        const val = calculateExtraHoursAmount(booking, 0.5);
+                                                        setExtraHoursForm({ bookingId: booking.id, duration: 0.5, amount: val });
+                                                    }}
                                                     className={`flex-1 py-3 px-3 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all ${
                                                         extraHoursForm.bookingId === booking.id && extraHoursForm.duration === 0.5
                                                             ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm ring-1 ring-orange-100'
@@ -420,7 +435,10 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
                                                     <Clock className="w-4 h-4" /> <span>+30m</span>
                                                 </button>
                                                 <button
-                                                    onClick={() => setExtraHoursForm({ bookingId: booking.id, duration: 1, amount: '' })}
+                                                    onClick={() => {
+                                                        const val = calculateExtraHoursAmount(booking, 1);
+                                                        setExtraHoursForm({ bookingId: booking.id, duration: 1, amount: val });
+                                                    }}
                                                     className={`flex-1 py-3 px-3 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all ${
                                                         extraHoursForm.bookingId === booking.id && extraHoursForm.duration === 1
                                                             ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm ring-1 ring-orange-100'
@@ -463,69 +481,71 @@ const ActiveBookings: React.FC<ActiveBookingsProps> = ({ bookings, inventory, co
 
                                     <div className="space-y-4">
                                         <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Allocate Item/Drink</h4>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {inventory.filter(item => {
-                                                const currentQty = booking.selectedDrinks?.find(sd => sd.drinkId === item.id)?.quantity || 0;
-                                                return item.stockQuantity > 0 || currentQty > 0;
-                                            }).slice(0, 4).map(item => {
-                                                const currentQty = booking.selectedDrinks?.find(sd => sd.drinkId === item.id)?.quantity || 0;
-                                                return (
-                                                    <div
-                                                        key={item.id}
-                                                        className="flex items-center justify-between p-2 bg-white border border-slate-100 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all group relative"
-                                                    >
-                                                        <div className="flex items-center gap-2 overflow-hidden flex-1 select-none">
-                                                            <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden text-[10px] text-slate-400">
-                                                                {item.imageUrl ? (
-                                                                    <img src={item.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                                                ) : (
-                                                                    <Package className="w-4 h-4" />
-                                                                )}
+                                        <div className="max-h-60 overflow-y-auto pr-1 space-y-1">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {inventory.filter(item => {
+                                                    const currentQty = booking.selectedDrinks?.find(sd => sd.drinkId === item.id)?.quantity || 0;
+                                                    return item.stockQuantity > 0 || currentQty > 0;
+                                                }).map(item => {
+                                                    const currentQty = booking.selectedDrinks?.find(sd => sd.drinkId === item.id)?.quantity || 0;
+                                                    return (
+                                                        <div
+                                                            key={item.id}
+                                                            className="flex items-center justify-between p-2 bg-white border border-slate-100 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all group relative"
+                                                        >
+                                                            <div className="flex items-center gap-2 overflow-hidden flex-1 select-none">
+                                                                <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden text-[10px] text-slate-400">
+                                                                    {item.imageUrl ? (
+                                                                        <img src={item.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                                                    ) : (
+                                                                        <Package className="w-4 h-4" />
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-left overflow-hidden">
+                                                                    <p className="text-[10px] font-bold text-slate-900 truncate">{item.name}</p>
+                                                                    <p className="text-[9px] text-indigo-500 font-black">₹{item.price}</p>
+                                                                </div>
                                                             </div>
-                                                            <div className="text-left overflow-hidden">
-                                                                <p className="text-[10px] font-bold text-slate-900 truncate">{item.name}</p>
-                                                                <p className="text-[9px] text-indigo-500 font-black">₹{item.price}</p>
-                                                            </div>
-                                                        </div>
 
-                                                        <div className="flex items-center gap-1.5 shrink-0 z-10">
-                                                            {currentQty > 0 && (
+                                                            <div className="flex items-center gap-1.5 shrink-0 z-10">
+                                                                {currentQty > 0 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={isUpdating === booking.id}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleRemoveDrink(booking, item.id);
+                                                                        }}
+                                                                        className="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 flex items-center justify-center transition-all disabled:opacity-50"
+                                                                        title="Remove one"
+                                                                    >
+                                                                        <Minus className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+
+                                                                {currentQty > 0 && (
+                                                                    <span className="text-xs font-black text-slate-700 min-w-[12px] text-center">
+                                    {currentQty}
+                                  </span>
+                                                                )}
+
                                                                 <button
                                                                     type="button"
-                                                                    disabled={isUpdating === booking.id}
+                                                                    disabled={isUpdating === booking.id || item.stockQuantity <= 0}
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        handleRemoveDrink(booking, item.id);
+                                                                        handleAddDrink(booking, item.id);
                                                                     }}
-                                                                    className="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 flex items-center justify-center transition-all disabled:opacity-50"
-                                                                    title="Remove one"
+                                                                    className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center justify-center transition-all disabled:opacity-50"
+                                                                    title="Add one"
                                                                 >
-                                                                    <Minus className="w-3.5 h-3.5" />
+                                                                    <Plus className="w-3.5 h-3.5" />
                                                                 </button>
-                                                            )}
-
-                                                            {currentQty > 0 && (
-                                                                <span className="text-xs font-black text-slate-700 min-w-[12px] text-center">
-                                  {currentQty}
-                                </span>
-                                                            )}
-
-                                                            <button
-                                                                type="button"
-                                                                disabled={isUpdating === booking.id || item.stockQuantity <= 0}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleAddDrink(booking, item.id);
-                                                                }}
-                                                                className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center justify-center transition-all disabled:opacity-50"
-                                                                title="Add one"
-                                                            >
-                                                                <Plus className="w-3.5 h-3.5" />
-                                                            </button>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            })}
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     </div>
 

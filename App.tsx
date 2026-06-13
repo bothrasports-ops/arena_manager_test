@@ -21,7 +21,8 @@ import {
   ChevronDown,
   PieChart,
   Globe,
-  TrendingDown
+  TrendingDown,
+  ClipboardCheck
 } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Toaster, toast } from 'sonner';
@@ -40,12 +41,13 @@ import CoachingUI from './components/CoachingUI';
 import Finances from './components/Finances';
 import ExpensesManager from './components/ExpensesManager';
 import PlatformManager from './components/PlatformManager';
+import AttendanceManager from './components/AttendanceManager';
 import { AppState, Booking, DrinkInventoryItem, Sport, PosSale, BookingType, UserRole, Member, Student, UserProfile, Court, MembershipPlanDefinition, BookingPlatform, PaymentMethod, Expense } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const App: React.FC = () => {
   const isConfigMissing = !isSupabaseConfigured;
-  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'coaching' | 'users' | 'court_manager' | 'plans' | 'finances' | 'platforms' | 'expenses'>('active');
+  const [activeTab, setActiveTab] = useState<'new' | 'list' | 'inventory' | 'dashboard' | 'drinks' | 'active' | 'members' | 'coaching' | 'users' | 'court_manager' | 'plans' | 'finances' | 'platforms' | 'expenses' | 'attendance'>('active');
   const [initialBookingData, setInitialBookingData] = useState<{courtId?: string, date?: string, startTime?: string} | null>(null);
 
   const handleBookSlot = (courtId: string, time: string, date: string) => {
@@ -365,6 +367,21 @@ const App: React.FC = () => {
 
       if (courtsError) console.error("Error fetching courts:", courtsError);
 
+      const mappedCourts = (courtsData || []).map((c: any) => {
+        const localPrice = localStorage.getItem(`court_price_${c.id}`);
+        return {
+          id: c.id,
+          name: c.name,
+          sport: c.sport,
+          venueId: c.venue_id,
+          start_time: c.start_time,
+          end_time: c.end_time,
+          hourly_price: c.hourly_price !== undefined && c.hourly_price !== null
+              ? Number(c.hourly_price)
+              : (localPrice ? parseFloat(localPrice) : 0)
+        };
+      });
+
       // 2. Fetch Membership Plans
       const { data: plansData, error: plansError } = await supabase
           .from('membership_plan_definitions')
@@ -576,7 +593,7 @@ const App: React.FC = () => {
         posSales: mappedPosSales,
         members: mappedMembers,
         students: mappedStudents,
-        courts: courtsData || [],
+        courts: mappedCourts,
         membershipPlans: mappedPlans,
         platforms: platformsData || [],
         expenses: mappedExpenses
@@ -852,6 +869,12 @@ const App: React.FC = () => {
                         icon={<Zap className="w-4 h-4" />}
                         label="Coaching"
                         active={activeTab === 'coaching'}
+                    />
+                    <DropdownItem
+                        onClick={() => setActiveTab('attendance')}
+                        icon={<ClipboardCheck className="w-4 h-4" />}
+                        label="Attendance Tracker"
+                        active={activeTab === 'attendance'}
                     />
                     <DropdownItem
                         onClick={() => setActiveTab('plans')}
@@ -1145,6 +1168,12 @@ DROP POLICY IF EXISTS "Allow courts management based on venue" ON courts;
                   label="Coaching"
               />
               <NavButton
+                  active={activeTab === 'attendance'}
+                  onClick={() => setActiveTab('attendance')}
+                  icon={<ClipboardCheck className="w-5 h-5" />}
+                  label="Attendance Tracker"
+              />
+              <NavButton
                   active={activeTab === 'plans'}
                   onClick={() => setActiveTab('plans')}
                   icon={<PlusCircle className="w-5 h-5" />}
@@ -1257,6 +1286,13 @@ DROP POLICY IF EXISTS "Allow courts management based on venue" ON courts;
                             onUpdate={refreshData}
                             venueId={appState.profile?.venue_id || appState.user?.id}
                             availableSports={appState.profile?.available_sports || []}
+                        />
+                    )}
+                    {activeTab === 'attendance' && (
+                        <AttendanceManager
+                            members={appState.members}
+                            students={appState.students}
+                            venueId={appState.profile?.venue_id || appState.user?.id}
                         />
                     )}
                     {activeTab === 'new' && (
