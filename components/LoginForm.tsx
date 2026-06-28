@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Zap, ArrowRight, User, Lock, ShieldCheck, AlertCircle, Info, Mail, Building2, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import logoImage from '../src/logo_comp.png'
 import { supabase } from '../lib/supabase';
 import { Sport } from '../types';
 
@@ -261,10 +262,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12">
         <div className="max-w-md w-full animate-in fade-in zoom-in-95 duration-700">
           <div className="text-center mb-10">
-            <div className="relative inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[2rem] shadow-2xl shadow-indigo-200 mb-6 rotate-3 group overflow-hidden">
-              <Zap className="text-white w-12 h-12 fill-white/20 relative z-10 group-hover:scale-110 transition-transform duration-500" />
-              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <Sparkles className="absolute top-2 right-2 w-5 h-5 text-indigo-200 animate-pulse" />
+            <div className="relative inline-flex items-center justify-center w-24 h-24 bg-slate-950 rounded-[2.2rem] shadow-2xl shadow-indigo-200 mb-6 rotate-3 group overflow-hidden border-2 border-slate-850 p-[1px]">
+              <img
+                  src={logoImage}
+                  alt="VenueIQ Logo"
+                  className="w-full h-full object-cover rounded-[2.1rem] group-hover:scale-110 transition-transform duration-500"
+                  referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <Sparkles className="absolute top-2 right-2 w-5 h-5 text-amber-400 animate-pulse" />
             </div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">VenueIQ</h1>
             <p className="text-slate-500 font-medium mt-2 italic flex items-center justify-center gap-2">
