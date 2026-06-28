@@ -262,15 +262,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onAuthSuccess }) => {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12">
         <div className="max-w-md w-full animate-in fade-in zoom-in-95 duration-700">
           <div className="text-center mb-10">
-            <div className="relative inline-flex items-center justify-center w-24 h-24 bg-slate-950 rounded-[2.2rem] shadow-2xl shadow-indigo-200 mb-6 rotate-3 group overflow-hidden border-2 border-slate-850 p-[1px]">
+            <div className="relative inline-flex items-center justify-center w-24 h-24 bg-white rounded-3xl shadow-xl shadow-slate-200/50 mb-6 border-2 border-slate-100 p-2 group overflow-hidden">
               <img
                   src={logoImage}
                   alt="VenueIQ Logo"
-                  className="w-full h-full object-cover rounded-[2.1rem] group-hover:scale-110 transition-transform duration-500"
+                  className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
                   referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              <Sparkles className="absolute top-2 right-2 w-5 h-5 text-amber-400 animate-pulse" />
+              <div className="absolute inset-0 bg-slate-950/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
             </div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">VenueIQ</h1>
             <p className="text-slate-500 font-medium mt-2 italic flex items-center justify-center gap-2">
