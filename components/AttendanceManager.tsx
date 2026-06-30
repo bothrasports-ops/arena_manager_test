@@ -14,7 +14,12 @@ import {
     BarChart2,
     CalendarDays,
     CheckSquare,
-    AlertOctagon
+    AlertOctagon,
+    FileSpreadsheet,
+    SlidersHorizontal,
+    TrendingDown,
+    TrendingUp,
+    ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Member, Student } from '../types';
@@ -28,7 +33,7 @@ interface AttendanceManagerProps {
 
 const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students, venueId }) => {
     // Navigation Tabs
-    const [activeTab, setActiveTab] = useState<'daily' | 'history'>('daily');
+    const [activeTab, setActiveTab] = useState<'daily' | 'history' | 'group'>('daily');
 
     // Daily Tracker States
     const [selectedDate, setSelectedDate] = useState(() => {
@@ -46,7 +51,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
     // Real or Localized state for daily attendance registry
     const [attendanceRecords, setAttendanceRecords] = useState<Record<string, 'present' | 'absent'>>({});
 
-    // History Tracker States
+    // History Tracker States (Single Person)
     const [selectedPerson, setSelectedPerson] = useState<{ id: string; name: string; type: 'member' | 'student'; sport: string; detail: string } | null>(null);
     const [personSearch, setPersonSearch] = useState('');
     const [showPersonDropdown, setShowPersonDropdown] = useState(false);
@@ -70,6 +75,28 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
     const [isHistoryLoading, setIsHistoryLoading] = useState(false);
     const [historySearchQuery, setHistorySearchQuery] = useState('');
     const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'present' | 'absent'>('all');
+
+    // Group Report States (Consolidated Everyone's Report)
+    const [groupStartDate, setGroupStartDate] = useState(() => {
+        const d = new Date();
+        d.setDate(1); // Start of current month
+        const offset = d.getTimezoneOffset();
+        const localDate = new Date(d.getTime() - (offset * 60 * 1000));
+        return localDate.toISOString().split('T')[0];
+    });
+
+    const [groupEndDate, setGroupEndDate] = useState(() => {
+        const d = new Date(); // Today
+        const offset = d.getTimezoneOffset();
+        const localDate = new Date(d.getTime() - (offset * 60 * 1000));
+        return localDate.toISOString().split('T')[0];
+    });
+
+    const [groupAttendance, setGroupAttendance] = useState<Array<{ date: string; member_id?: string; student_id?: string; status: 'present' | 'absent' }>>([]);
+    const [isGroupLoading, setIsGroupLoading] = useState(false);
+    const [groupSearchQuery, setGroupSearchQuery] = useState('');
+    const [groupTypeFilter, setGroupTypeFilter] = useState<'all' | 'members' | 'students'>('all');
+    const [groupSortOrder, setGroupSortOrder] = useState<'alphabetical' | 'ratio-desc' | 'ratio-asc'>('alphabetical');
 
     // Combined Directory List (Members + Students mapping)
     const directory = useMemo(() => {
@@ -113,7 +140,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
         return list;
     }, [members, students]);
 
-    // Load attendance records for the selected date
+    // Load attendance records for the selected date (Daily View)
     const loadAttendance = async () => {
         if (!venueId) return;
         setIsLoading(true);
@@ -150,10 +177,12 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
 
     // Run initial loading whenever date or venue changes
     useEffect(() => {
-        loadAttendance();
-    }, [selectedDate, venueId]);
+        if (activeTab === 'daily') {
+            loadAttendance();
+        }
+    }, [selectedDate, venueId, activeTab]);
 
-    // Handle toggling attendance state
+    // Handle toggling attendance state (Daily View)
     const handleMarkAttendance = async (item: { id: string; type: 'member' | 'student' }, statusToSet: 'present' | 'absent') => {
         if (!venueId) return;
 
@@ -210,7 +239,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
         }
     };
 
-    // Perform filtering/searches in JavaScript
+    // Perform filtering/searches in JavaScript (Daily View)
     const filteredList = useMemo(() => {
         return directory.filter(item => {
             if (filterType === 'members' && item.type !== 'member') return false;
@@ -233,7 +262,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
         });
     }, [directory, searchQuery, filterType, filterStatus, attendanceRecords]);
 
-    // Statistics Calculation (Daily)
+    // Statistics Calculation (Daily View)
     const stats = useMemo(() => {
         let total = directory.length;
         let presentCount = 0;
@@ -254,7 +283,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
     }, [directory, attendanceRecords]);
 
 
-    // ==================== HISTORY TRACKING & REPORT ENGINE ====================
+    // ==================== HISTORY TRACKING & REPORT ENGINE (Single Person) ====================
 
     // Filter matched people in history personnel search
     const matchedPeople = useMemo(() => {
@@ -404,7 +433,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
         }
     };
 
-    // Quick Preset Handlers
+    // Quick Preset Handlers for Single Person History
     const applyPreset = (preset: 'this-month' | 'last-30' | 'last-90') => {
         const today = new Date();
         const offset = today.getTimezoneOffset();
@@ -429,7 +458,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
         setHistoryEndDate(localToday);
     };
 
-    // Generate date array sequentially between start and end
+    // Generate date array sequentially between start and end (Single Person History)
     const datesInRange = useMemo(() => {
         const dates: string[] = [];
         if (!historyStartDate || !historyEndDate) return dates;
@@ -457,7 +486,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
         return dates.reverse(); // Newest dates first
     }, [historyStartDate, historyEndDate]);
 
-    // Aggregate daily dates with status (Present or Absent/Unmarked)
+    // Aggregate daily dates with status (Single Person History)
     const historyList = useMemo(() => {
         const statusMap: Record<string, 'present' | 'absent'> = {};
         personHistory.forEach(item => {
@@ -470,7 +499,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
         }));
     }, [datesInRange, personHistory]);
 
-    // Apply search/filters on aggregated history list
+    // Apply search/filters on aggregated history list (Single Person History)
     const filteredHistoryList = useMemo(() => {
         return historyList.filter(item => {
             if (historyStatusFilter === 'present' && item.status !== 'present') return false;
@@ -492,7 +521,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
         });
     }, [historyList, historyStatusFilter, historySearchQuery]);
 
-    // History Statistics Highlight
+    // History Statistics Highlight (Single Person)
     const historyStats = useMemo(() => {
         const total = historyList.length;
         const presentCount = historyList.filter(item => item.status === 'present').length;
@@ -506,6 +535,208 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
             ratio
         };
     }, [historyList]);
+
+
+    // ==================== CONSOLIDATED EVERYONE'S REPORT (Group Tab) ====================
+
+    // Quick Preset Handlers for Group Range
+    const applyGroupPreset = (preset: 'this-month' | 'last-7' | 'last-30') => {
+        const today = new Date();
+        const offset = today.getTimezoneOffset();
+        const localToday = new Date(today.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+
+        let start = '';
+        if (preset === 'this-month') {
+            const d = new Date();
+            d.setDate(1);
+            start = new Date(d.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+        } else if (preset === 'last-7') {
+            const d = new Date();
+            d.setDate(d.getDate() - 7);
+            start = new Date(d.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+        } else if (preset === 'last-30') {
+            const d = new Date();
+            d.setDate(d.getDate() - 30);
+            start = new Date(d.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+        }
+
+        setGroupStartDate(start);
+        setGroupEndDate(localToday);
+    };
+
+    // Generate date array sequentially between start and end for Group
+    const datesInGroupRange = useMemo(() => {
+        const dates: string[] = [];
+        if (!groupStartDate || !groupEndDate) return dates;
+
+        const start = new Date(groupStartDate);
+        const end = new Date(groupEndDate);
+
+        if (start > end) return dates;
+
+        // Safety restriction of max 90 days for consolidated list to keep execution lightweight
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays > 90) {
+            start.setTime(end.getTime() - (90 * 24 * 60 * 60 * 1000));
+        }
+
+        const current = new Date(start);
+        while (current <= end) {
+            const offset = current.getTimezoneOffset();
+            const localDate = new Date(current.getTime() - (offset * 60 * 1000));
+            dates.push(localDate.toISOString().split('T')[0]);
+            current.setDate(current.getDate() + 1);
+        }
+
+        return dates.sort(); // Oldest to newest for sequence logic
+    }, [groupStartDate, groupEndDate]);
+
+    // Load consolidated group attendance records
+    const loadGroupAttendance = async () => {
+        if (!venueId) return;
+        setIsGroupLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('attendance_records')
+                .select('*')
+                .eq('venue_id', venueId)
+                .gte('date', groupStartDate)
+                .lte('date', groupEndDate);
+
+            if (error) throw error;
+
+            setGroupAttendance((data || []).map((r: any) => ({
+                date: r.date,
+                member_id: r.member_id,
+                student_id: r.student_id,
+                status: r.status
+            })));
+        } catch (err: any) {
+            console.warn("Using offline local group attendance history lookup:", err.message || err);
+            const records: Array<{ date: string; member_id?: string; student_id?: string; status: 'present' | 'absent' }> = [];
+            const prefix = `venueiq_attendance_${venueId}_`;
+
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith(prefix)) {
+                    const dateStr = key.substring(prefix.length); // YYYY-MM-DD
+                    if (dateStr >= groupStartDate && dateStr <= groupEndDate) {
+                        try {
+                            const dataObj = JSON.parse(localStorage.getItem(key) || '{}');
+                            Object.entries(dataObj).forEach(([personId, status]) => {
+                                const isMember = members.some(m => m.id === personId);
+                                records.push({
+                                    date: dateStr,
+                                    member_id: isMember ? personId : undefined,
+                                    student_id: !isMember ? personId : undefined,
+                                    status: status as 'present' | 'absent'
+                                });
+                            });
+                        } catch (e) {
+                            console.error("Error parsing local attendance key", key, e);
+                        }
+                    }
+                }
+            }
+            setGroupAttendance(records);
+        } finally {
+            setIsGroupLoading(false);
+        }
+    };
+
+    // Re-fetch group attendance when dependencies shift
+    useEffect(() => {
+        if (activeTab === 'group' && venueId) {
+            loadGroupAttendance();
+        }
+    }, [groupStartDate, groupEndDate, activeTab, venueId]);
+
+    // Calculate and aggregate stats for each person in the directory
+    const groupSummaryList = useMemo(() => {
+        const totalDays = datesInGroupRange.length;
+
+        const list = directory.map(person => {
+            // Find all records belonging to this person
+            const personRecords = groupAttendance.filter(r =>
+                (person.type === 'member' && r.member_id === person.id) ||
+                (person.type === 'student' && r.student_id === person.id)
+            );
+
+            // Map out exact states per date
+            const statusByDate: Record<string, 'present' | 'absent'> = {};
+            personRecords.forEach(r => {
+                statusByDate[r.date] = r.status;
+            });
+
+            // Filter to dates in selected range
+            const presentDays = datesInGroupRange.filter(d => statusByDate[d] === 'present').length;
+
+            // An unmarked date defaults to absent
+            const absentDays = totalDays - presentDays;
+            const ratio = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
+            // Prepare a structured sequence of recent dates (up to last 12 for compact UI heatmap)
+            const recentTimeline = datesInGroupRange.slice(-12).map(d => ({
+                date: d,
+                status: statusByDate[d] || 'absent'
+            }));
+
+            return {
+                ...person,
+                presentCount: presentDays,
+                absentCount: absentDays,
+                ratio,
+                timeline: recentTimeline
+            };
+        });
+
+        // Apply front-end filtering
+        const filtered = list.filter(p => {
+            if (groupTypeFilter === 'members' && p.type !== 'member') return false;
+            if (groupTypeFilter === 'students' && p.type !== 'student') return false;
+
+            if (groupSearchQuery.trim()) {
+                const query = groupSearchQuery.toLowerCase();
+                return (
+                    p.name.toLowerCase().includes(query) ||
+                    p.phone.includes(query) ||
+                    p.detail.toLowerCase().includes(query)
+                );
+            }
+            return true;
+        });
+
+        // Apply sorting
+        if (groupSortOrder === 'alphabetical') {
+            filtered.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (groupSortOrder === 'ratio-desc') {
+            filtered.sort((a, b) => b.ratio - a.ratio);
+        } else if (groupSortOrder === 'ratio-asc') {
+            filtered.sort((a, b) => a.ratio - b.ratio);
+        }
+
+        return filtered;
+    }, [directory, groupAttendance, datesInGroupRange, groupSearchQuery, groupTypeFilter, groupSortOrder]);
+
+    // Overall Group Level Stats
+    const groupStats = useMemo(() => {
+        if (groupSummaryList.length === 0) return { avgRatio: 0, lowAttendanceCount: 0, presentToday: 0 };
+
+        let totalRatio = 0;
+        let lowCount = 0;
+
+        groupSummaryList.forEach(p => {
+            totalRatio += p.ratio;
+            if (p.ratio < 50) lowCount++; // Attendance warning threshold below 50%
+        });
+
+        return {
+            avgRatio: Math.round(totalRatio / groupSummaryList.length),
+            lowAttendanceCount: lowCount,
+            totalPeople: groupSummaryList.length
+        };
+    }, [groupSummaryList]);
 
 
     return (
@@ -533,11 +764,22 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
                     }`}
                 >
                     <BarChart2 className="w-4 h-4" />
-                    Personnel History & Reports
+                    Individual History
+                </button>
+                <button
+                    onClick={() => setActiveTab('group')}
+                    className={`px-5 py-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+                        activeTab === 'group'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                >
+                    <Users className="w-4 h-4" />
+                    Everyone's Report
                 </button>
             </div>
 
-            {activeTab === 'daily' ? (
+            {activeTab === 'daily' && (
                 <>
                     {/* Daily Tracker Header and Controls */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -749,14 +991,15 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
                         </div>
                     )}
                 </>
-            ) : (
-                <div className="space-y-6 animate-in fade-in duration-500">
+            )}
 
+            {activeTab === 'history' && (
+                <div className="space-y-6 animate-in fade-in duration-500">
                     {/* Header */}
                     <div>
                         <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
                             <BarChart2 className="w-6 h-6 text-indigo-600" />
-                            Attendance History & Reports
+                            Individual Attendance History
                         </h2>
                         <p className="text-slate-500 text-sm">
                             Analyze monthly attendance registers or custom date ranges for individual students or members.
@@ -851,7 +1094,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
                                         onChange={(e) => setHistoryStartDate(e.target.value)}
                                         className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
                                     />
-                                    <span className="self-center font-bold text-slate-400 text-xs uppercase">to</span>
+                                    <span className="self-center font-bold text-slate-400 text-xs uppercase text-center sm:text-left min-w-[20px]">to</span>
                                     <input
                                         type="date"
                                         value={historyEndDate}
@@ -1053,6 +1296,292 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ members, students
                     )}
                 </div>
             )}
+
+            {activeTab === 'group' && (
+                <div className="space-y-6 animate-in fade-in duration-500">
+
+                    {/* Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                                <Users className="w-6 h-6 text-indigo-600" />
+                                Consolidated Everyone's Report
+                            </h2>
+                            <p className="text-slate-500 text-sm">
+                                Track and compare attendance rates, session counts, and heatmaps for all active personnel.
+                            </p>
+                        </div>
+
+                        {/* Range Pickers */}
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                                <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                                <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Date Range:</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="date"
+                                    value={groupStartDate}
+                                    onChange={(e) => setGroupStartDate(e.target.value)}
+                                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                                />
+                                <span className="text-xs text-slate-400 font-bold">to</span>
+                                <input
+                                    type="date"
+                                    value={groupEndDate}
+                                    onChange={(e) => setGroupEndDate(e.target.value)}
+                                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                                />
+                            </div>
+
+                            {/* Range Presets */}
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={() => applyGroupPreset('this-month')}
+                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-[10px] font-bold text-slate-600 transition border border-slate-200"
+                                >
+                                    Month
+                                </button>
+                                <button
+                                    onClick={() => applyGroupPreset('last-7')}
+                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-[10px] font-bold text-slate-600 transition border border-slate-200"
+                                >
+                                    7 Days
+                                </button>
+                                <button
+                                    onClick={() => applyGroupPreset('last-30')}
+                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-[10px] font-bold text-slate-600 transition border border-slate-200"
+                                >
+                                    30 Days
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={loadGroupAttendance}
+                                className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-slate-600 transition"
+                                title="Refresh Attendance"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${isGroupLoading ? 'animate-spin text-indigo-600' : ''}`} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Aggregate Group Stats Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                                <Users className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Monitored Personnel</span>
+                                <span className="text-2xl font-black text-slate-900">{groupStats.totalPeople} Active</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                                <CheckSquare className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Average Attendance Ratio</span>
+                                <span className="text-2xl font-black text-emerald-700">{groupStats.avgRatio}%</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                                <AlertCircle className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Low Attendance Alert (&lt;50%)</span>
+                                <span className="text-2xl font-black text-rose-700">{groupStats.lowAttendanceCount} Students/Members</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Filtering, Searching and Sorting */}
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
+                        <div className="relative w-full md:max-w-sm">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search matching personnel..."
+                                value={groupSearchQuery}
+                                onChange={(e) => setGroupSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none placeholder-slate-400 text-sm font-medium transition"
+                            />
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+                            {/* Type Filter */}
+                            <div className="flex bg-slate-100 rounded-xl p-1 border border-slate-200 shrink-0">
+                                <button
+                                    onClick={() => setGroupTypeFilter('all')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${groupTypeFilter === 'all' ? 'bg-white text-indigo-600 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    All Types
+                                </button>
+                                <button
+                                    onClick={() => setGroupTypeFilter('members')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${groupTypeFilter === 'members' ? 'bg-white text-indigo-600 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    Members
+                                </button>
+                                <button
+                                    onClick={() => setGroupTypeFilter('students')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${groupTypeFilter === 'students' ? 'bg-white text-indigo-600 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    Students
+                                </button>
+                            </div>
+
+                            {/* Sorting Filter */}
+                            <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                                <select
+                                    value={groupSortOrder}
+                                    onChange={(e) => setGroupSortOrder(e.target.value as any)}
+                                    className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
+                                >
+                                    <option value="alphabetical">Sort: Alphabetical</option>
+                                    <option value="ratio-desc">Sort: High Attendance</option>
+                                    <option value="ratio-asc">Sort: Low Attendance</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Group consolidated reports listing */}
+                    {isGroupLoading ? (
+                        <div className="py-24 bg-white rounded-3xl border border-slate-200 flex flex-col items-center justify-center text-center">
+                            <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-2" />
+                            <p className="text-sm font-bold text-slate-600">Generating group consolidated reports...</p>
+                        </div>
+                    ) : groupSummaryList.length === 0 ? (
+                        <div className="py-24 bg-white rounded-3xl border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-center px-6">
+                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                                <Users className="text-slate-300 w-8 h-8" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900">No Personnel Found</h3>
+                            <p className="text-slate-500 max-w-sm mt-1 text-sm">
+                                We couldn't find any active members or students matching the current filter configurations for everyone's report.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {groupSummaryList.map(person => {
+                                const isLow = person.ratio < 50;
+                                const isHigh = person.ratio >= 80;
+
+                                return (
+                                    <div
+                                        key={person.id}
+                                        className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between space-y-4"
+                                    >
+                                        {/* Header: Avatar, Name, Sport */}
+                                        <div className="flex gap-3 overflow-hidden">
+                                            <div className={`w-11 h-11 rounded-xl shrink-0 flex items-center justify-center ${
+                                                person.type === 'member'
+                                                    ? 'bg-blue-50 text-blue-600'
+                                                    : 'bg-violet-50 text-violet-600'
+                                            }`}>
+                                                {person.type === 'member' ? (
+                                                    <User className="w-5 h-5" />
+                                                ) : (
+                                                    <GraduationCap className="w-5 h-5" />
+                                                )}
+                                            </div>
+
+                                            <div className="text-left overflow-hidden">
+                                                <div className="flex items-center gap-1.5">
+                                                    <h4 className="font-extrabold text-slate-900 text-sm truncate leading-tight">{person.name}</h4>
+                                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wider ${
+                                                        person.type === 'member'
+                                                            ? 'bg-blue-50 text-blue-700'
+                                                            : 'bg-violet-50 text-violet-700'
+                                                    }`}>
+                            {person.type}
+                          </span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-bold mt-0.5">{person.phone}</p>
+                                                <p className="text-[10px] text-slate-500 font-semibold truncate mt-1">{person.detail}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Ratio & Quick Stats */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Attendance Rate</span>
+                                                <div className="flex items-center gap-1">
+                                                    {isLow ? (
+                                                        <TrendingDown className="w-3.5 h-3.5 text-rose-500" />
+                                                    ) : isHigh ? (
+                                                        <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                                                    ) : null}
+                                                    <span className={`text-sm font-black ${
+                                                        isLow ? 'text-rose-600' : isHigh ? 'text-emerald-600' : 'text-indigo-600'
+                                                    }`}>{person.ratio}%</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Attendance level visual bar */}
+                                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                        isLow ? 'bg-rose-500' : isHigh ? 'bg-emerald-500' : 'bg-indigo-500'
+                                                    }`}
+                                                    style={{ width: `${person.ratio}%` }}
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 pt-1">
+                                                <span>Present: <b className="text-slate-700">{person.presentCount} days</b></span>
+                                                <span>Absent: <b className="text-slate-700">{person.absentCount} days</b></span>
+                                            </div>
+                                        </div>
+
+                                        {/* Streak / Heatmap timeline preview */}
+                                        <div className="border-t border-slate-100 pt-3">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Recent Timeline Heatmap</span>
+
+                                            {person.timeline.length === 0 ? (
+                                                <span className="text-[10px] text-slate-400 italic block">No sessions in selected range</span>
+                                            ) : (
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    {person.timeline.map((day, idx) => {
+                                                        const isP = day.status === 'present';
+                                                        const formattedShortDate = new Date(day.date).toLocaleDateString('en-US', {
+                                                            month: 'short',
+                                                            day: 'numeric'
+                                                        });
+
+                                                        return (
+                                                            <div
+                                                                key={day.date + idx}
+                                                                className={`w-6 h-6 rounded-md flex items-center justify-center text-[8px] font-black transition-all ${
+                                                                    isP
+                                                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                                                        : 'bg-slate-50 text-slate-300 border border-slate-100'
+                                                                }`}
+                                                                title={`${formattedShortDate}: ${isP ? 'Present' : 'Absent/Unmarked'}`}
+                                                            >
+                                                                {isP ? 'P' : 'A'}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                </div>
+            )}
+
         </div>
     );
 };
