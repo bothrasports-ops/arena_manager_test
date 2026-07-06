@@ -46,12 +46,29 @@ interface DashboardProps {
   expenses?: Expense[];
 }
 
-type TimeRange = 'all' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+type TimeRange = 'all' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom';
 
 const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, members, students, membershipPlans, expenses = [] }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
   const [sportFilter, setSportFilter] = useState<string>('All');
   const [compareMode, setCompareMode] = useState<boolean>(false);
+
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yyyy = firstDay.getFullYear();
+    const mm = String(firstDay.getMonth() + 1).padStart(2, '0');
+    const dd = String(firstDay.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const yyyy = lastDay.getFullYear();
+    const mm = String(lastDay.getMonth() + 1).padStart(2, '0');
+    const dd = String(lastDay.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
 
   // Available months derived from existing datasets
   const availableMonths = useMemo(() => getAvailableMonths(bookings, posSales, expenses), [bookings, posSales, expenses]);
@@ -121,6 +138,15 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
           return Math.floor(date.getMonth() / 3) === currentQuarter && date.getFullYear() === currentYear;
         case 'yearly':
           return date.getFullYear() === currentYear;
+        case 'custom':
+          if (customStartDate && customEndDate) {
+            const start = new Date(customStartDate);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(customEndDate);
+            end.setHours(23, 59, 59, 999);
+            return date >= start && date <= end;
+          }
+          return true;
         default:
           return true;
       }
@@ -283,7 +309,8 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       weekly: 'This Week',
       monthly: 'This Month',
       quarterly: 'This Quarter',
-      yearly: 'This Year'
+      yearly: 'This Year',
+      custom: 'Custom Range'
     };
 
     const rangeSubtitles: Record<TimeRange, string> = {
@@ -292,7 +319,10 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       weekly: `Since ${startOfWeek.toLocaleDateString('default', { day: 'numeric', month: 'short' })}`,
       monthly: now.toLocaleString('default', { month: 'long', year: 'numeric' }),
       quarterly: `Q${currentQuarter + 1} ${currentYear}`,
-      yearly: `${currentYear}`
+      yearly: `${currentYear}`,
+      custom: customStartDate && customEndDate
+          ? `${new Date(customStartDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })} to ${new Date(customEndDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}`
+          : 'Select dates'
     };
 
     const filteredExpenses = expenses.filter(e => isInRange(e.expenseDate));
@@ -331,7 +361,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
       expiredStudents,
       revenueByMethod
     };
-  }, [bookings, inventory, posSales, members, students, timeRange, sportFilter, membershipPlans, expenses]);
+  }, [bookings, inventory, posSales, members, students, timeRange, customStartDate, customEndDate, sportFilter, membershipPlans, expenses]);
 
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -444,7 +474,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
 
           {/* Regular TimeRange filter (only visible if compareMode is false) */}
           {!compareMode && (
-              <div className="w-full xl:w-auto flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm relative shrink-0">
+              <div className="w-full xl:w-auto flex flex-col md:flex-row items-stretch md:items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm relative shrink-0 gap-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
                     <Clock className="w-5 h-5 text-indigo-600" />
@@ -455,7 +485,31 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {timeRange === 'custom' && (
+                      <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-300">
+                        <div className="relative group">
+                          <span className="absolute -top-2 left-2 px-1 bg-white text-[9px] font-bold text-indigo-500 z-10">Start</span>
+                          <input
+                              type="date"
+                              value={customStartDate}
+                              onChange={(e) => setCustomStartDate(e.target.value)}
+                              className="bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block px-3 py-2 outline-none cursor-pointer hover:bg-slate-100 transition-all"
+                          />
+                        </div>
+                        <span className="text-slate-400 font-bold text-xs shrink-0">to</span>
+                        <div className="relative group">
+                          <span className="absolute -top-2 left-2 px-1 bg-white text-[9px] font-bold text-indigo-500 z-10">End</span>
+                          <input
+                              type="date"
+                              value={customEndDate}
+                              onChange={(e) => setCustomEndDate(e.target.value)}
+                              className="bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block px-3 py-2 outline-none cursor-pointer hover:bg-slate-100 transition-all"
+                          />
+                        </div>
+                      </div>
+                  )}
+
                   <div className="relative group">
                     <select
                         value={timeRange}
@@ -468,6 +522,7 @@ const Dashboard: React.FC<DashboardProps> = ({ bookings, inventory, posSales, me
                       <option value="monthly">Monthly</option>
                       <option value="quarterly">Quarterly</option>
                       <option value="yearly">Yearly</option>
+                      <option value="custom">Custom Range</option>
                     </select>
                     <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                   </div>
